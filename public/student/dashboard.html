@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - Sindhu Software Training</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/analytics-dashboard.css">
+    <link rel="stylesheet" href="/css/loading-animations.css">
+    <link rel="stylesheet" href="/css/ai-chat.css">
+    <link rel="stylesheet" href="/css/modern-chat.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-wrapper">
+                <div class="logo-icon">S</div>
+                <div class="logo-text">Sindhu</div>
+            </div>
+            <button id="sidebar-toggle" class="btn-icon">
+                <i class="ri-menu-line"></i>
+            </button>
+        </div>
+        <nav class="nav-links">
+            <a href="#" class="nav-item active" data-section="overview">
+                <i class="ri-dashboard-line"></i>
+                <span class="nav-text">Overview</span>
+            </a>
+            <a href="#" class="nav-item" data-section="courses">
+                <i class="ri-book-open-line"></i>
+                <span class="nav-text">My Courses</span>
+            </a>
+            <a href="#" class="nav-item" data-section="assignments">
+                <i class="ri-file-list-3-line"></i>
+                <span class="nav-text">Assignments</span>
+            </a>
+            <a href="#" class="nav-item" data-section="quizzes">
+                <i class="ri-questionnaire-line"></i>
+                <span class="nav-text">Quizzes</span>
+            </a>
+            <a href="#" class="nav-item" data-section="sessions">
+                <i class="ri-calendar-event-line"></i>
+                <span class="nav-text">Sessions</span>
+            </a>
+            <a href="#" class="nav-item" data-section="classrooms">
+                <i class="ri-video-line"></i>
+                <span class="nav-text">Classrooms</span>
+            </a>
+            <a href="#" class="nav-item" data-section="messages">
+                <i class="ri-message-3-line"></i>
+                <span class="nav-text">Messages</span>
+            </a>
+            <a href="#" class="nav-item" data-section="study-buddy">
+                <i class="ri-robot-2-line"></i>
+                <span class="nav-text">Study Buddy</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-profile-mini"
+                style="margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                <div style="font-size: 0.9rem; font-weight: 600;" id="user-name">Student</div>
+            </div>
+            <button class="btn btn-secondary btn-block" onclick="logout()">Logout</button>
+        </div>
+    </aside>
+
+    <!-- Floating Actions -->
+    <div class="floating-actions">
+        <button id="theme-toggle" class="theme-toggle floating-btn" aria-label="Toggle Dark Mode">
+            <i class="ri-sun-line theme-icon"></i>
+        </button>
+        <div class="user-profile-dropdown">
+            <div class="profile-trigger floating-btn">
+                <div class="avatar" id="header-avatar">S</div>
+                <span class="user-name" id="user-name">Student</span>
+                <i class="ri-arrow-down-s-line dropdown-arrow"></i>
+            </div>
+            <div class="dropdown-menu" id="profile-menu">
+                <div class="dropdown-header">
+                    <div class="avatar-large" id="menu-avatar">S</div>
+                    <div class="user-details">
+                        <strong id="menu-user-name">Student</strong>
+                        <span id="menu-user-role">Student</span>
+                    </div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <a href="#" class="dropdown-item" onclick="openProfileModal()">
+                    <i class="ri-user-line"></i> My Profile
+                </a>
+                <a href="#" class="dropdown-item" onclick="openChangePasswordModal()">
+                    <i class="ri-lock-password-line"></i> Change Password
+                </a>
+                <div class="dropdown-item non-clickable">
+                    <i class="ri-time-line"></i> Last Login: <span id="last-login-time">--</span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <a href="#" class="dropdown-item text-danger" onclick="logout()">
+                    <i class="ri-logout-box-line"></i> Logout
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <main class="main-content">
+        <!-- Section Title -->
+        <h1 id="section-title" style="margin-bottom: 1.5rem; font-size: 1.75rem;">Dashboard Overview</h1>
+
+        <!-- Admin View Banner -->
+        <div id="admin-banner"
+            style="display: none; background: linear-gradient(135deg, #1a516f, #2d7a9e); color: white; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem; align-items: center; gap: 10px;">
+            <i class="ri-admin-line" style="font-size: 1.5rem;"></i>
+            <div style="flex: 1;">
+                <strong>Admin Mode</strong>
+                <p style="margin: 0; font-size: 0.9rem; opacity: 0.9;">You are managing this student's dashboard. Any
+                    changes you make will be applied to their account.</p>
+            </div>
+        </div>
+
+        <!-- Overview Section -->
+        <section class="content-section active" id="overview-section">
+            <!-- Stats Grid (Admin Style) -->
+            <div class="stats-container mb-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;">
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="ri-book-open-line"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Enrolled Courses</div>
+                        <div class="stat-value" id="enrolled-count">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="ri-file-list-3-line"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Pending Assignments</div>
+                        <div class="stat-value" id="pending-assignments">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="ri-calendar-event-line"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Upcoming Sessions</div>
+                        <div class="stat-value" id="upcoming-sessions">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="ri-message-3-line"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-label">Unread Messages</div>
+                        <div class="stat-value" id="unread-messages">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Charts -->
+            <div class="analytics-section mb-4">
+                <h2 class="section-heading"><i class="ri-bar-chart-line"></i> Performance Analytics</h2>
+
+                <div class="charts-grid">
+                    <!-- Attendance Chart -->
+                    <div class="widget-card">
+                        <div class="widget-header">
+                            <h3><i class="ri-calendar-check-line"
+                                    style="margin-right: 8px; color: var(--primary-color);"></i> Attendance Overview
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="attendanceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Assignment Scores Chart -->
+                    <div class="widget-card">
+                        <div class="widget-header">
+                            <h3><i class="ri-file-chart-line"
+                                    style="margin-right: 8px; color: var(--primary-color);"></i> Assignment Scores</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="assignmentScoresChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- AI Insights & Notifications (Moved here) -->
+                    <div class="widget-card" style="grid-column: span 1;">
+                        <div class="widget-header"
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center;">
+                                <i class="ri-sparkling-2-fill"
+                                    style="margin-right: 8px; color: var(--primary-color);"></i>
+                                Study Buddy Insights
+                            </h3>
+                            <span class="ai-badge"
+                                style="font-size: 0.7rem; padding: 2px 8px; border-radius: 12px; background: rgba(var(--primary-rgb), 0.1); color: var(--primary-color);">AI
+                                Powered</span>
+                        </div>
+                        <div class="ai-insights-content" id="ai-insights-content">
+                            <div class="ai-insight-item ai-loading">
+                                <i class="ri-loader-4-line ri-spin"></i>
+                                <span>Analyzing your progress...</span>
+                            </div>
+                        </div>
+                        <div class="ai-actions"
+                            style="padding: 10px 0 0 0; border-top: 1px solid var(--border-color); display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 10px;">
+                            <button class="btn btn-sm btn-secondary" onclick="toggleNotifications()"
+                                style="font-size: 0.75rem; padding: 4px 8px; flex: 1; white-space: nowrap;">
+                                <i class="ri-notification-3-line"></i> Notifications
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="generateStudyPlan()"
+                                style="font-size: 0.75rem; padding: 4px 8px; flex: 1; white-space: nowrap;">
+                                <i class="ri-calendar-todo-line"></i> Get Study Plan
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="refreshAIInsights()"
+                                style="font-size: 0.75rem; padding: 4px 8px; flex: 1; white-space: nowrap;">
+                                <i class="ri-refresh-line"></i> Analyze Performance
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Performance Radar Chart -->
+                    <div class="widget-card" style="grid-column: span 2;">
+                        <div class="widget-header">
+                            <h3><i class="ri-radar-line" style="margin-right: 8px; color: var(--primary-color);"></i>
+                                Overall Performance</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="performanceRadarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Course Progress -->
+                    <div class="widget-card">
+                        <div class="widget-header">
+                            <h3><i class="ri-progress-3-line"
+                                    style="margin-right: 8px; color: var(--primary-color);"></i> Course Progress</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="courseProgressChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="card">
+                    <h3 class="mb-3">Recent Assignments</h3>
+                    <div id="recent-assignments">
+                        <p class="text-muted">No recent assignments</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="mb-3">Upcoming Sessions</h3>
+                    <div id="upcoming-sessions-list">
+                        <p class="text-muted">No upcoming sessions</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Courses Section -->
+        <section class="content-section" id="courses-section">
+            <div class="section-actions mb-3">
+                <button class="btn btn-primary" onclick="showAvailableCourses()">+ Enroll in Course</button>
+            </div>
+
+            <div id="courses-list" class="grid grid-2"></div>
+        </section>
+
+        <!-- Assignments Section -->
+        <section class="content-section" id="assignments-section">
+            <div id="assignments-list"></div>
+        </section>
+
+        <!-- Quizzes Section -->
+        <section class="content-section" id="quizzes-section">
+            <div id="quizzes-list"></div>
+        </section>
+
+        <!-- Sessions Section -->
+        <section class="content-section" id="sessions-section">
+            <div id="sessions-list"></div>
+        </section>
+
+        <!-- Classrooms Section -->
+        <section class="content-section" id="classrooms-section">
+            <!-- Live Classrooms -->
+            <div class="widget-card mb-3">
+                <div class="widget-header">
+                    <h3><i class="ri-live-line" style="margin-right: 8px; color: #10b981;"></i> Live Classrooms</h3>
+                    <button class="btn btn-sm btn-secondary" onclick="loadStudentClassrooms()">
+                        <i class="ri-refresh-line"></i> Refresh
+                    </button>
+                </div>
+                <div id="live-classrooms-list">
+                    <p class="text-muted">No live classrooms at the moment</p>
+                </div>
+            </div>
+
+            <!-- Upcoming Classrooms -->
+            <div class="widget-card mb-3">
+                <div class="widget-header">
+                    <h3><i class="ri-calendar-line" style="margin-right: 8px; color: var(--primary-color);"></i>
+                        Upcoming Classrooms</h3>
+                </div>
+                <div id="upcoming-classrooms-list">
+                    <p class="text-muted">No upcoming classrooms scheduled</p>
+                </div>
+            </div>
+
+            <!-- Recently Attended -->
+            <div class="widget-card">
+                <div class="widget-header">
+                    <h3><i class="ri-history-line" style="margin-right: 8px; color: #6b7280;"></i> Recently Attended
+                    </h3>
+                </div>
+                <div id="recent-classrooms-list">
+                    <p class="text-muted">No classroom history yet</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Messages Section -->
+        <section class="content-section" id="messages-section">
+            <div class="section-actions mb-3">
+                <!-- Compose Message button removed -->
+            </div>
+            <div id="messages-list"></div>
+        </section>
+
+        <!-- Study Buddy Section -->
+        <section id="study-buddy-section" class="content-section">
+            <div class="section-header">
+                <h2><i class="ri-robot-2-line"></i> AI Study Buddy</h2>
+                <p style="opacity: 0.8; font-size: 0.9rem;">Your personal AI learning assistant with conversation
+                    history</p>
+            </div>
+            <div class="section-content">
+                <div id="study-buddy-container"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Container -->
+    <div id="modal-container"></div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/notifications.js"></script>
+    <script src="/js/cache-manager.js"></script>
+    <script src="/js/chart-config.js"></script>
+    <script src="/js/loading-manager.js"></script>
+    <script src="/js/cookie-consent.js"></script>
+    <script src="/js/study-buddy-section.js?v=12"></script>
+    <script src="/js/ai-study-buddy-button.js"></script>
+    <script src="/js/ai-chat.js"></script>
+    <!-- <script src="/js/ai-chat-interface.js"></script> File doesn't exist -->
+    <script src="/js/conversation-accordion.js"></script>
+    <script src="/js/resizable-chat.js"></script>
+    <script src="/js/classroom/student-classroom.js"></script>
+    <script src="/js/student-dashboard.js?v=2"></script>
+    <script>
+        // Simple helper to toggle details pane (optionally used)
+        window.toggleDetails = function () {
+            const details = document.querySelector('.chat-details');
+            if (details) details.style.display = details.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</body>
+
+</html>

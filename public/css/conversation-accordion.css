@@ -1,0 +1,78 @@
+/* ========================================
+   CONVERSATION ACCORDION STYLES
+   ======================================== */
+
+.conversation-accordion {
+    margin-bottom: 8px;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: var(--bg-tertiary);
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px;
+    transition: background 0.2s;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.accordion-header:hover {
+    background: var(--bg-secondary);
+}
+
+.accordion-title {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.accordion-icon {
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    transition: transform 0.3s ease;
+}
+
+.accordion-icon.rotated {
+    transform: rotate(-180deg);
+}
+
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.accordion-content.active {
+    max-height: 2000px;
+    /* Large enough to fit all conversations */
+}
+
+/* Conversation items within accordion */
+.accordion-content .conversation-item {
+    margin: 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.accordion-content .conversation-item:last-child {
+    border-bottom: none;
+}
+
+/* Light mode adjustments */
+body.light-mode .accordion-header {
+    background: #f0f0f0;
+}
+
+body.light-mode .accordion-header:hover {
+    background: #e5e5e5;
+}
+
+body.light-mode .accordion-title {
+    color: #212529;
+}

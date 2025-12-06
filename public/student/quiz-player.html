@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Quiz - Proctored Environment</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        :root {
+            --bg-body: #f3f4f6;
+            --bg-card: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --primary-color: #1a516f;
+            --primary-hover: #13405a;
+            --primary-rgb: 26, 81, 111;
+            /* RGB for --primary-color */
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #111827;
+            --bg-card: #1f2937;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+            --border-color: #374151;
+            --primary-color: #38bdf8;
+            --primary-hover: #0ea5e9;
+            --primary-rgb: 56, 189, 248;
+            /* RGB for --primary-color */
+        }
+
+        body {
+            user-select: none;
+            background: var(--bg-body);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .quiz-container {
+            background: var(--bg-card);
+            width: 100%;
+            max-width: 800px;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: none;
+            position: relative;
+        }
+
+        .start-screen {
+            text-align: center;
+            background: var(--bg-card);
+            padding: 3rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            color: var(--text-primary);
+        }
+
+        .question-card {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+        }
+
+        .option-label {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+        }
+
+        .option-label:hover {
+            background: rgba(var(--primary-rgb), 0.05);
+            border-color: var(--primary-color);
+        }
+
+        /* Custom Radio Button */
+        .option-input {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-secondary);
+            border-radius: 50%;
+            margin-right: 10px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .option-input:checked {
+            border-color: var(--primary-color);
+            background-color: var(--primary-color);
+        }
+
+        .option-input:checked::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .option-label.selected {
+            border-color: var(--primary-color);
+            background: rgba(var(--primary-rgb), 0.1);
+        }
+
+        .timer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-body);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            border: 1px solid var(--border-color);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 3000;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .warning-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(220, 38, 38, 0.95);
+            color: white;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body oncontextmenu="return false;">
+
+    <!-- Theme Toggle -->
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Theme">
+        <i class="ri-sun-line" id="theme-icon"></i>
+    </button>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="start-screen">
+        <h1 id="quiz-title">Loading Quiz...</h1>
+        <p class="mb-4" style="color: var(--text-secondary);">This is a proctored exam.</p>
+        <ul style="text-align: left; margin-bottom: 2rem; list-style: none; padding: 0;">
+            <li class="mb-2"><i class="ri-fullscreen-line"></i> Fullscreen is required.</li>
+            <li class="mb-2"><i class="ri-eye-off-line"></i> Tab switching is monitored.</li>
+            <li class="mb-2"><i class="ri-alarm-warning-line"></i> 3 warnings will auto-submit the test.</li>
+        </ul>
+        <button class="btn btn-primary btn-lg" onclick="startQuiz()">
+            <i class="ri-shield-check-line"></i> Enter Fullscreen & Start
+        </button>
+    </div>
+
+    <!-- Quiz Interface -->
+    <div id="quiz-interface" class="quiz-container">
+        <div class="timer" id="timer">Time Left: --:--</div>
+        <h2 id="question-header" class="mb-4" style="color: var(--text-primary);">Question 1 of 5</h2>
+        <div id="question-container"></div>
+        <div class="actions" style="display: flex; justify-content: space-between; margin-top: 2rem;">
+            <button class="btn btn-secondary" onclick="prevQuestion()" id="prev-btn" disabled>Previous</button>
+            <button class="btn btn-primary" onclick="nextQuestion()" id="next-btn">Next</button>
+            <button class="btn btn-success" onclick="submitQuiz()" id="submit-btn" style="display: none;">Submit
+                Quiz</button>
+        </div>
+    </div>
+
+    <!-- Warning Overlay -->
+    <div id="warning-overlay" class="warning-overlay">
+        <i class="ri-alarm-warning-fill" style="font-size: 4rem; margin-bottom: 1rem;"></i>
+        <h2>Proctoring Warning!</h2>
+        <p>You have switched tabs or exited fullscreen.</p>
+        <p>Warnings Left: <span id="warnings-left">3</span></p>
+        <button class="btn btn-light mt-3" onclick="resumeQuiz()">Return to Quiz</button>
+    </div>
+
+    <script>
+        // Theme Logic
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('theme-icon');
+            icon.className = theme === 'dark' ? 'ri-moon-line' : 'ri-sun-line';
+        }
+
+        // Initialize Theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateThemeIcon(savedTheme);
+
+        // State
+        let quiz = null;
+        let currentQuestionIndex = 0;
+        let answers = {};
+        let warnings = 0;
+        const MAX_WARNINGS = 3;
+        let timerInterval;
+
+        // Load Quiz Data
+        async function loadQuiz() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const accessToken = urlParams.get('token');
+
+            if (!accessToken) {
+                alert('No quiz access token provided');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/quizzes/access/${accessToken}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    quiz = data.quiz;
+                    document.getElementById('quiz-title').textContent = quiz.title;
+                    document.getElementById('quiz-topic').textContent = quiz.topic;
+                } else {
+                    alert(data.message || 'Failed to load quiz');
+                    window.location.href = '/student/dashboard.html';
+                }
+            } catch (error) {
+                console.error('Error loading quiz:', error);
+                alert('Failed to load quiz');
+                window.location.href = '/student/dashboard.html';
+            }
+        } // Start Quiz (Enter Fullscreen)
+        function startQuiz() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().then(() => {
+                    document.getElementById('start-screen').style.display = 'none';
+                    document.getElementById('quiz-interface').style.display = 'block';
+                    // Hide theme toggle in fullscreen to avoid distraction/overlay issues
+                    document.querySelector('.theme-toggle').style.display = 'none';
+                    renderQuestion();
+                    startTimer(quiz.timeLimit * 60);
+                    enableProctoring();
+                }).catch(err => {
+                    alert('Error attempting to enable fullscreen mode: ' + err.message);
+                });
+            }
+        }
+
+        // Render Question
+        function renderQuestion() {
+            const question = quiz.questions[currentQuestionIndex];
+            document.getElementById('question-header').innerText = `Question ${currentQuestionIndex + 1} of ${quiz.questions.length}`;
+
+            const html = `
+                <div class="question-card">
+                    <p class="lead mb-4" style="font-size: 1.1rem; font-weight: 500;">${question.question}</p>
+                    <div class="options">
+                        ${question.options.map((opt, i) => `
+                            <label class="option-label ${answers[question.id] === i ? 'selected' : ''}" onclick="selectOption(${question.id}, ${i}, this)">
+                                <input type="radio" name="q${question.id}" value="${i}" 
+                                    class="option-input"
+                                    ${answers[question.id] === i ? 'checked' : ''}>
+                                <span class="option-text">${opt}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            document.getElementById('question-container').innerHTML = html;
+
+            // Update buttons
+            document.getElementById('prev-btn').disabled = currentQuestionIndex === 0;
+            if (currentQuestionIndex === quiz.questions.length - 1) {
+                document.getElementById('next-btn').style.display = 'none';
+                document.getElementById('submit-btn').style.display = 'inline-block';
+            } else {
+                document.getElementById('next-btn').style.display = 'inline-block';
+                document.getElementById('submit-btn').style.display = 'none';
+            }
+        }
+
+        function selectOption(qId, optionIndex, labelElement) {
+            // Update state
+            answers[qId] = optionIndex;
+
+            // Visual update
+            // Remove selected class from all labels in this question
+            const allLabels = labelElement.parentElement.querySelectorAll('.option-label');
+            allLabels.forEach(l => l.classList.remove('selected'));
+
+            // Add selected class to clicked label
+            labelElement.classList.add('selected');
+
+            // Check the radio input
+            const input = labelElement.querySelector('input');
+            input.checked = true;
+        }
+
+        function nextQuestion() {
+            if (currentQuestionIndex < quiz.questions.length - 1) {
+                currentQuestionIndex++;
+                renderQuestion();
+            }
+        }
+
+        function prevQuestion() {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                renderQuestion();
+            }
+        }
+
+        // Timer
+        function startTimer(duration) {
+            let timer = duration, minutes, seconds;
+            timerInterval = setInterval(function () {
+                minutes = parseInt(timer / 60, 10);
+                seconds = parseInt(timer % 60, 10);
+
+                minutes = minutes < 10 ? "0" + minutes : minutes;
+                seconds = seconds < 10 ? "0" + seconds : seconds;
+
+                document.getElementById('timer').textContent = "Time Left: " + minutes + ":" + seconds;
+
+                if (--timer < 0) {
+                    clearInterval(timerInterval);
+                    alert('Time is up!');
+                    submitQuiz();
+                }
+            }, 1000);
+        }
+
+        // Proctoring Logic
+        function enableProctoring() {
+            // Tab Switch Detection
+            document.addEventListener("visibilitychange", function () {
+                if (document.hidden) {
+                    triggerWarning();
+                }
+            });
+
+            // Window Blur Detection
+            window.addEventListener("blur", function () {
+                triggerWarning();
+            });
+
+            // Fullscreen Exit Detection
+            document.addEventListener("fullscreenchange", function () {
+                if (!document.fullscreenElement) {
+                    triggerWarning();
+                }
+            });
+        }
+
+        function triggerWarning() {
+            if (document.getElementById('warning-overlay').style.display === 'flex') return; // Already showing
+
+            warnings++;
+            const left = MAX_WARNINGS - warnings;
+            document.getElementById('warnings-left').innerText = left;
+
+            document.getElementById('warning-overlay').style.display = 'flex';
+
+            if (warnings >= MAX_WARNINGS) {
+                alert('Violation limit reached. Auto-submitting quiz.');
+                submitQuiz();
+            }
+        }
+
+        function resumeQuiz() {
+            // Force fullscreen again
+            document.documentElement.requestFullscreen().then(() => {
+                document.getElementById('warning-overlay').style.display = 'none';
+            }).catch(() => {
+                alert('You must enter fullscreen to continue.');
+            });
+        }
+
+        // Submit Logic
+        async function submitQuiz() {
+            clearInterval(timerInterval);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const quizId = urlParams.get('id');
+
+            try {
+                const response = await fetch(`/api/quizzes/${quizId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ answers })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`Quiz Submitted! Your score: ${data.score}%`);
+                    window.close();
+                    // If window.close() is blocked, redirect
+                    window.location.href = '/student/dashboard.html';
+                } else {
+                    alert('Error submitting quiz: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Submit error:', error);
+                alert('Failed to submit quiz. Please contact support.');
+            }
+        }
+
+        // Init
+        loadQuiz();
+    </script>
+</body>
+
+</html>

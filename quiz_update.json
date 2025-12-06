@@ -1,0 +1,1 @@
+{"success":true,"quiz":{"id":3,"courseId":1,"professorId":"4","title":"Enhanced Quiz Test","topic":"Testing","questions":[{"id":1,"correct":0,"options":["A","B"],"question":"Q1"}],"timeLimit":10,"cutoffScore":75,"closesAt":null,"isManualStop":true,"status":"closed","createdAt":"2025-12-02T10:23:34.000Z","updatedAt":"2025-12-02T10:24:01.000Z"}}

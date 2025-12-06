@@ -1,0 +1,79 @@
+/* ========================================
+   ICON FIXES
+   Ensure all Remix Icons are visible
+   ======================================== */
+
+/* Ensure all Remix Icons are visible */
+i[class^="ri-"],
+i[class*=" ri-"] {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-style: normal;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+/* Ensure icons inherit color from parent */
+.btn i,
+.mobile-header-btn i,
+.nav-item i,
+.mobile-profile-item i,
+.ai-chat-btn i,
+.ai-fab i {
+    color: inherit;
+    font-size: inherit;
+}
+
+/* Mobile header icons */
+.mobile-header-btn i {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+/* Sidebar nav icons */
+.nav-item i {
+    font-size: 1.25rem;
+    color: inherit;
+}
+
+/* AI chat button icon */
+.ai-chat-btn i,
+.ai-fab i {
+    color: white;
+    font-size: 1.75rem;
+}
+
+/* Chat action icons */
+.chat-header i,
+.mobile-back-to-list i {
+    color: var(--text-primary);
+}
+
+/* Profile menu icons */
+.mobile-profile-item i {
+    color: inherit;
+}
+
+/* Ensure button icons are visible */
+button i,
+a i {
+    pointer-events: none;
+    /* Don't block clicks on parent */
+}
+
+/* Light mode icon visibility */
+body.light-mode i[class^="ri-"],
+body.light-mode i[class*=" ri-"] {
+    color: inherit;
+}
+
+/* Specific icon color fixes */
+.theme-icon {
+    color: inherit !important;
+}
+
+/* Mobile avatar - not an icon but ensure visibility */
+.mobile-avatar {
+    font-style: normal;
+}

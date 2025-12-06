@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Sindhu Software Training</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/mobile-interface.css">
+    <link rel="stylesheet" href="/css/icon-fixes.css">
+    <link rel="stylesheet" href="/css/conversation-accordion.css">
+    <link rel="stylesheet" href="/css/ai-chat.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+
+<body>
+    <!-- Mobile Header Bar -->
+    <div class="mobile-header">
+        <button class="mobile-header-btn" onclick="toggleMobileSidebar()" aria-label="Menu">
+            <i class="ri-menu-line"></i>
+        </button>
+        <div class="mobile-header-right">
+            <button class="mobile-header-btn" id="mobile-theme-toggle" aria-label="Toggle Theme">
+                <i class="ri-sun-line theme-icon"></i>
+            </button>
+            <button class="mobile-header-btn" onclick="toggleMobileProfileMenu()" aria-label="Profile">
+                <div class="mobile-avatar" id="mobile-header-avatar">A</div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile Profile Menu (Fullscreen) -->
+    <div class="mobile-profile-menu" id="mobile-profile-menu">
+        <div class="mobile-profile-header">
+            <button class="mobile-back-btn" onclick="toggleMobileProfileMenu()">
+                <i class="ri-arrow-left-line"></i>
+            </button>
+            <h2>Profile</h2>
+        </div>
+        <div class="mobile-profile-content">
+            <div class="mobile-profile-user">
+                <div class="avatar-large" id="mobile-menu-avatar">A</div>
+                <div class="user-details">
+                    <strong id="mobile-menu-user-name">Admin</strong>
+                    <span id="mobile-menu-user-role">Administrator</span>
+                    <span class="user-email" id="mobile-menu-user-email">admin@example.com</span>
+                </div>
+            </div>
+            <div class="mobile-profile-menu-items">
+                <a href="#" class="mobile-profile-item" onclick="openProfileModal(); toggleMobileProfileMenu();">
+                    <i class="ri-user-line"></i>
+                    <span>My Profile</span>
+                    <i class="ri-arrow-right-s-line"></i>
+                </a>
+                <a href="#" class="mobile-profile-item" onclick="openChangePasswordModal(); toggleMobileProfileMenu();">
+                    <i class="ri-lock-password-line"></i>
+                    <span>Change Password</span>
+                    <i class="ri-arrow-right-s-line"></i>
+                </a>
+                <div class="mobile-profile-item non-clickable">
+                    <i class="ri-time-line"></i>
+                    <span>Last Login: <span id="mobile-last-login-time">--</span></span>
+                </div>
+                <a href="#" class="mobile-profile-item danger" onclick="logout()">
+                    <i class="ri-logout-box-line"></i>
+                    <span>Logout</span>
+                    <i class="ri-arrow-right-s-line"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <img src="/images/logo-light.png" alt="Sindhu Software Solutions" class="sidebar-logo"
+                style="max-width: 200px; margin: 0 auto; display: block;">
+            <p class="user-role" style="margin-top: 1rem;">Administrator</p>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-section="overview">
+                <i class="ri-dashboard-line"></i>
+                <span>Overview</span>
+            </a>
+            <a href="#" class="nav-item" data-section="users">
+                <i class="ri-group-line"></i>
+                <span>Users</span>
+            </a>
+            <a href="#" class="nav-item" data-section="courses">
+                <i class="ri-book-open-line"></i>
+                <span>Courses</span>
+            </a>
+            <a href="#" class="nav-item" data-section="assignments">
+                <i class="ri-clipboard-line"></i>
+                <span>Assignments</span>
+            </a>
+            <a href="#" class="nav-item" data-section="sessions">
+                <i class="ri-calendar-event-line"></i>
+                <span>Sessions</span>
+            </a>
+            <a href="#" class="nav-item" data-section="attendance">
+                <i class="ri-checkbox-circle-line"></i>
+                <span>Attendance</span>
+            </a>
+            <a href="#" class="nav-item" data-section="messages">
+                <i class="ri-message-3-line"></i>
+                <span>Messages</span>
+            </a>
+            <a href="#" class="nav-item" data-section="study-buddy">
+                <i class="ri-robot-2-line"></i>
+                <span>Study Buddy</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="btn btn-secondary btn-block" onclick="logout()">Logout</button>
+        </div>
+    </aside>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" onclick="toggleMobileSidebar()">
+        <i class="ri-menu-line"></i>
+    </button>
+
+    <!-- Floating Actions -->
+    <div class="floating-actions">
+        <button id="theme-toggle" class="theme-toggle floating-btn" aria-label="Toggle Dark Mode">
+            <i class="ri-sun-line theme-icon"></i>
+        </button>
+        <div class="user-profile-dropdown">
+            <div class="profile-trigger floating-btn">
+                <div class="avatar" id="header-avatar">A</div>
+                <span class="user-name" id="user-name">Admin</span>
+                <i class="ri-arrow-down-s-line dropdown-arrow"></i>
+            </div>
+            <div class="dropdown-menu" id="profile-menu">
+                <div class="dropdown-header">
+                    <div class="avatar-large" id="menu-avatar">A</div>
+                    <div class="user-details">
+                        <strong id="menu-user-name">Admin</strong>
+                        <span id="menu-user-role">Administrator</span>
+                    </div>
+                </div>
+                <div class="dropdown-divider"></div>
+                <a href="#" class="dropdown-item" onclick="openProfileModal()">
+                    <i class="ri-user-line"></i> My Profile
+                </a>
+                <a href="#" class="dropdown-item" onclick="openChangePasswordModal()">
+                    <i class="ri-lock-password-line"></i> Change Password
+                </a>
+                <div class="dropdown-item non-clickable">
+                    <i class="ri-time-line"></i> Last Login: <span id="last-login-time">--</span>
+                </div>
+                <div class="dropdown-divider"></div>
+                <a href="#" class="dropdown-item text-danger" onclick="logout()">
+                    <i class="ri-logout-box-line"></i> Logout
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <main class="dashboard-content">
+        <!-- Section Title -->
+        <h1 id="section-title" style="margin-bottom: 1.5rem; font-size: 1.75rem;">Admin Dashboard</h1>
+
+        <!-- Overview Section -->
+        <section id="overview-section" class="content-section active">
+            <div class="overview-grid">
+                <!-- Stats Row -->
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-user-line"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-label">Total Students</div>
+                            <div class="stat-value" id="total-students">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-user-star-line"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-label">Total Professors</div>
+                            <div class="stat-value" id="total-professors">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-book-open-line"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-label">Total Courses</div>
+                            <div class="stat-value" id="total-courses">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-clipboard-line"></i></div>
+                        <div class="stat-info">
+                            <div class="stat-label">Total Assignments</div>
+                            <div class="stat-value" id="total-assignments">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content (Charts) -->
+                <div class="charts-container">
+                    <div class="widget-card">
+                        <div class="widget-header">
+                            <h3>New Students (Last 30 Days)</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="newStudentsChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="widget-card">
+                        <div class="widget-header">
+                            <h3><i class="ri-magic-line" style="margin-right: 8px; color: var(--primary-color);"></i> AI
+                                Insights</h3>
+                        </div>
+                        <div id="ai-insights-container">
+                            <!-- AI insights will be populated here -->
+                            <div class="text-muted text-center">Analyzing data...</div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Side Widgets -->
+                <div class="side-widgets">
+                    <!-- AI Notification Center -->
+                    <div class="widget-card">
+                        <div class="widget-header">
+                            <h3>Course Popularity</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="coursePopularityChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Top Performers -->
+                    <div class="widget-card">
+                        <div class="widget-header">
+                            <h3>Top Performers</h3>
+                        </div>
+                        <div id="top-performers-container">
+                            <!-- Top performers will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Recent Activity</h3>
+                </div>
+                <div class="card-body">
+                    <div class="activity-list" id="recent-activity">
+                        <!-- Activity items will be populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Users Section -->
+        <section id="users-section" class="content-section">
+            <div class="section-header">
+                <h2>User Management</h2>
+                <div class="header-actions">
+                    <div class="search-box">
+                        <input type="text" id="user-search" placeholder="Search users..." onkeyup="filterUsers()">
+                    </div>
+                    <div class="filter-box">
+                        <select id="user-role-filter" onchange="filterUsers()">
+                            <option value="all">All Roles</option>
+                            <option value="student">Students</option>
+                            <option value="professor">Professors</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="openAddUserModal()">+ Add User</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Joined Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table-body">
+                        <!-- Users will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Courses Section -->
+        <section id="courses-section" class="content-section">
+            <div class="section-header">
+                <h2>All Courses</h2>
+                <button class="btn btn-primary" onclick="showCreateCourse()">+ Create Course</button>
+            </div>
+            <div class="section-content">
+                <div id="courses-list"></div>
+            </div>
+        </section>
+
+        <!-- Assignments Section -->
+        <section id="assignments-section" class="content-section">
+            <div class="section-header">
+                <h2>All Assignments</h2>
+            </div>
+            <div class="section-content">
+                <div id="assignments-list"></div>
+            </div>
+        </section>
+
+        <!-- Sessions Section -->
+        <section id="sessions-section" class="content-section">
+            <div class="section-header">
+                <h2>All Sessions</h2>
+            </div>
+            <div class="section-content">
+                <div id="sessions-list"></div>
+            </div>
+        </section>
+
+        <!-- Attendance Section -->
+        <section id="attendance-section" class="content-section">
+            <div class="section-header">
+                <h2>Attendance Management</h2>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="attendance-course-select">Select Course</label>
+                            <select id="attendance-course-select" class="form-control">
+                                <option value="">-- Select Course --</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="attendance-date">Date</label>
+                            <input type="date" id="attendance-date" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="attendance-session-select">Session (Optional)</label>
+                            <select id="attendance-session-select" class="form-control">
+                                <option value="">-- Select Session --</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 0 0 auto; align-self: flex-end;">
+                            <button id="load-attendance-btn" class="btn btn-primary">Load Students</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="attendance-list-container" class="card" style="display: none; margin-top: 1.5rem;">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Student List</h3>
+                    <div class="actions">
+                        <button id="mark-all-present-btn" class="btn btn-sm btn-outline">Mark All Present</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Status</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body">
+                                <!-- Students will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="form-actions" style="margin-top: 1.5rem; text-align: right;">
+                        <button id="save-attendance-btn" class="btn btn-primary">Save Attendance</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Messages Section -->
+        <section id="messages-section" class="content-section">
+            <div class="section-header">
+                <!-- Header removed as per user request -->
+            </div>
+            <div class="section-content">
+                <div id="messages-list"></div>
+            </div>
+        </section>
+
+        <!-- Study Buddy Section -->
+        <section id="study-buddy-section" class="content-section">
+            <div class="section-header">
+                <h2><i class="ri-robot-2-line"></i> AI Study Buddy</h2>
+                <p style="opacity: 0.8; font-size: 0.9rem;">Your personal AI learning assistant with conversation
+                    history</p>
+            </div>
+            <div class="section-content">
+                <div id="study-buddy-container"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Container -->
+    <div id="modal-container"></div>
+
+    <script src="/js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="/js/admin-dashboard.js?v=2"></script>
+    <script src="/js/ai-chat.js"></script>
+    <script src="/js/mobile-menu.js"></script>
+    <script src="/js/mobile-chat-navigation.js"></script>
+    <script src="/js/change-password.js"></script>
+    <script src="/js/edit-functions.js"></script>
+    <script src="/js/resizable-chat.js"></script>
+    <script src="/js/notifications.js"></script>
+    <script src="/js/ai-study-buddy-button.js"></script>
+    <script src="/js/study-buddy-section.js?v=2"></script>
+    <script src="/js/conversation-accordion.js"></script>
+    <script src="/js/delete-functions.js"></script>
+</body>
+
+</html>
+```

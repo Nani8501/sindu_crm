@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sindhu Software Training - CRM Login</title>
+  <meta name="description" content="CRM Dashboard for Sindhu Software Training">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .auth-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--spacing-md);
+    }
+
+    .auth-box {
+      width: 100%;
+      max-width: 450px;
+      animation: fadeIn 0.8s ease forwards;
+    }
+
+    .auth-header {
+      text-align: center;
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .auth-header h1 {
+      font-size: 2.5rem;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .auth-header p {
+      color: var(--text-muted);
+    }
+
+    .auth-tabs {
+      display: flex;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: var(--spacing-sm);
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition-base);
+      font-weight: 600;
+    }
+
+    .tab-btn.active {
+      background: var(--primary-gradient);
+      border-color: transparent;
+      color: white;
+      box-shadow: var(--shadow-glow);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .role-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .role-option {
+      position: relative;
+    }
+
+    .role-option input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+    }
+
+    .role-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--spacing-md);
+      background: var(--bg-tertiary);
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition-base);
+      text-align: center;
+    }
+
+    .role-option input[type="radio"]:checked+.role-label {
+      background: var(--primary-gradient);
+      border-color: transparent;
+      box-shadow: var(--shadow-glow);
+      color: white;
+    }
+
+    .role-icon {
+      font-size: 2rem;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .role-name {
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .divider {
+      text-align: center;
+      margin: var(--spacing-lg) 0;
+      position: relative;
+    }
+
+    .divider::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 100%;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .divider span {
+      background: var(--bg-primary);
+      padding: 0 var(--spacing-sm);
+      position: relative;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--spacing-md);
+      margin-top: var(--spacing-xl);
+      text-align: center;
+    }
+
+    .stat-item h3 {
+      font-size: 2rem;
+      background: var(--primary-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-item p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="auth-container">
+    <div class="auth-box">
+      <div class="auth-header">
+        <img src="/images/logo.png" alt="Sindhu Software Solutions Logo"
+          style="max-width: 200px; margin: 0 auto 1.5rem; display: block;">
+        <h1>Welcome to Sindhu Software Training</h1>
+        <p>Sign in to continue to your dashboard</p>
+      </div>
+
+      <div class="card card-glass">
+        <!-- Login Form -->
+        <div class="tab-content active" id="login-tab">
+          <form id="login-form">
+            <div class="form-group">
+              <label for="login-email">Email Address</label>
+              <input type="email" id="login-email" placeholder="your.email@example.com" required>
+            </div>
+
+            <div class="form-group">
+              <label for="login-password">Password</label>
+              <input type="password" id="login-password" placeholder="Enter your password" required>
+            </div>
+
+            <div id="login-message"></div>
+
+            <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+          </form>
+        </div>
+
+        <!-- Register Tab - Hidden, only admin can create users -->
+        <div class="tab-content" id="register-tab" style="display: none;">
+          <form id="register-form">
+            <div class="form-group">
+              <label>Select Your Role</label>
+              <div class="role-selector">
+                <div class="role-option">
+                  <input type="radio" id="role-student" name="role" value="student" checked>
+                  <label for="role-student" class="role-label">
+                    <div class="role-icon">🎓</div>
+                    <div class="role-name">Student</div>
+                  </label>
+                </div>
+                <div class="role-option">
+                  <input type="radio" id="role-professor" name="role" value="professor">
+                  <label for="role-professor" class="role-label">
+                    <div class="role-icon">👨‍🏫</div>
+                    <div class="role-name">Professor</div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="register-name">Full Name</label>
+              <input type="text" id="register-name" placeholder="John Doe" required>
+            </div>
+
+            <div class="form-group">
+              <label for="register-email">Email Address</label>
+              <input type="email" id="register-email" placeholder="your.email@example.com" required>
+            </div>
+
+            <div class="form-group">
+              <label for="register-phone">Phone Number (Optional)</label>
+              <input type="tel" id="register-phone" placeholder="+91 1234567890">
+            </div>
+
+            <div class="form-group">
+              <label for="register-password">Password</label>
+              <input type="password" id="register-password" placeholder="Minimum 6 characters" required>
+            </div>
+
+            <div id="register-message"></div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+              Create Account
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-item">
+          <h3>188+</h3>
+          <p>Students</p>
+        </div>
+        <div class="stat-item">
+          <h3>4</h3>
+          <p>Courses</p>
+        </div>
+        <div class="stat-item">
+          <h3>454</h3>
+          <p>Reviews</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/auth.js"></script>
+</body>
+
+</html>

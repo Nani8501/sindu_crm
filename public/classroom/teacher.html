@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Classroom - Teacher</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/classroom.css?v=3">
+</head>
+
+<body>
+    <div class="classroom-container">
+        <header class="classroom-header">
+            <div class="classroom-title" id="classroomTitle">Loading Classroom...</div>
+            <div class="classroom-stats">
+                <div class="stat-item">
+                    👥 <span id="participantCount">0</span> students
+                </div>
+                <div class="stat-item">
+                    ⏱️ <span id="duration">00:00</span>
+                </div>
+                <div class="stat-item">
+                    🌐 <span id="connectionStatus">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="classroom-main">
+            <div class="video-container">
+                <div class="video-grid" id="videoGrid">
+                    <!-- Videos will be added dynamically -->
+                </div>
+            </div>
+
+            <aside class="classroom-sidebar">
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" data-tab="participants">👥 Participants</button>
+                    <button class="sidebar-tab" data-tab="chat">💬 Chat</button>
+                    <button class="sidebar-tab" data-tab="requests">🙋 Requests</button>
+                </div>
+                <div class="sidebar-content">
+                    <!-- Participants Tab -->
+                    <div id="participantsTab" class="tab-content active">
+                        <div id="participantsList"></div>
+                    </div>
+
+                    <!-- Chat Tab -->
+                    <div id="chatTab" class="tab-content" style="display: none;">
+                        <div class="chat-messages" id="chatMessages"></div>
+                        <div class="chat-input-container">
+                            <input type="text" id="chatInput" placeholder="Type a message..." />
+                            <button id="sendChatBtn">Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Requests Tab -->
+                    <div id="requestsTab" class="tab-content" style="display: none;">
+                        <div id="requestsList">
+                            <p style="opacity: 0.6;">No pending requests</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <div class="classroom-toolbar">
+            <button class="toolbar-btn" id="micBtn" title="Toggle Microphone">
+                <i class="ri-mic-off-line"></i> <span>Mic Off</span>
+            </button>
+            <button class="toolbar-btn" id="cameraBtn" title="Toggle Camera">
+                <i class="ri-camera-off-line"></i> <span>Camera Off</span>
+            </button>
+            <button class="toolbar-btn" id="screenShareBtn" title="Toggle Screen Share">
+                <i class="ri-computer-line"></i> <span>Share Screen</span>
+            </button>
+            <button class="toolbar-btn danger" id="endClassBtn" title="End Class">
+                <i class="ri-logout-box-line"></i> <span>End Class</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Screen Share Request Modal -->
+    <div id="screenShareRequestModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">📺 Screen Share Request</div>
+            <div class="modal-body" id="screenShareModalBody">
+                <strong id="requesterName"></strong> wants to share their screen.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn primary" id="approveScreenShareBtn">✓ Approve</button>
+                <button class="modal-btn secondary" id="rejectScreenShareBtn">✗ Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remote Control Confirmation Modal -->
+    <div id="remoteControlModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">🎮 Remote Control Active</div>
+            <div class="modal-body">
+                You are now controlling <strong id="controlledStudentName"></strong>'s screen.
+                <br><br>
+                <small>Click anywhere to move the mouse. Use your keyboard to type.</small>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn danger" id="stopRemoteControlBtn">Stop Control</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/classroom/mediasoup-client.js"></script>
+    <script src="/js/classroom/teacher-client.js?v=5"></script>
+</body>
+
+</html>

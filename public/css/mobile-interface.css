@@ -1,0 +1,327 @@
+/* ========================================
+   MOBILE INTERFACE STYLES
+   ======================================== */
+
+/* Mobile Header Bar */
+.mobile-header {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 1002;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+}
+
+.mobile-header-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.mobile-header-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.mobile-header-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.mobile-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--primary-gradient);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+/* Mobile Profile Menu (Fullscreen) */
+.mobile-profile-menu {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-primary);
+    z-index: 1003;
+    overflow-y: auto;
+}
+
+.mobile-profile-menu.active {
+    display: block;
+}
+
+.mobile-profile-header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 10;
+}
+
+.mobile-back-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-profile-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.mobile-profile-content {
+    padding: 20px;
+}
+
+.mobile-profile-user {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.mobile-profile-user .avatar-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--primary-gradient);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 2rem;
+    margin-bottom: 15px;
+}
+
+.mobile-profile-user .user-details {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.mobile-profile-user .user-details strong {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.mobile-profile-user .user-details span {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.mobile-profile-menu-items {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.mobile-profile-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.mobile-profile-item:not(.non-clickable):hover {
+    background: var(--bg-tertiary);
+}
+
+.mobile-profile-item.non-clickable {
+    cursor: default;
+    opacity: 0.8;
+}
+
+.mobile-profile-item.danger {
+    color: #dc3545;
+}
+
+.mobile-profile-item i:first-child {
+    font-size: 1.25rem;
+    width: 24px;
+}
+
+.mobile-profile-item span {
+    flex: 1;
+}
+
+.mobile-profile-item i:last-child {
+    font-size: 1.25rem;
+    opacity: 0.5;
+}
+
+/* Mobile Media Queries */
+@media (max-width: 768px) {
+
+    /* Show mobile header */
+    .mobile-header {
+        display: flex;
+    }
+
+    /* Hide desktop header elements */
+    .dashboard-header .header-actions {
+        display: none;
+    }
+
+    /* Adjust main content for mobile header */
+    .dashboard-content {
+        padding-top: 70px;
+    }
+
+    /* Fullscreen sidebar on mobile */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 1005;
+        /* Higher than mobile header and profile menu */
+    }
+
+    .sidebar.active {
+        transform: translateX(0);
+    }
+
+    /* Sidebar backdrop overlay */
+    body::after {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        z-index: 1004;
+        /* Below sidebar, above content */
+    }
+
+    body.sidebar-open::after {
+        opacity: 1;
+        pointer-events: all;
+    }
+
+    /* Keep dashboard-content in place */
+    .dashboard-content,
+    .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+        padding: 10px 15px;
+        transition: none;
+        position: relative;
+        z-index: 1;
+    }
+
+    /* Mobile Chat Navigation */
+    .chat-container {
+        height: calc(100vh - 60px);
+        /* Account for mobile header */
+        margin-top: 0;
+    }
+
+    .conversation-list {
+        flex: 1;
+        width: 100%;
+        max-width: 100%;
+        border-right: none;
+        border-bottom: none;
+        height: 100%;
+    }
+
+    /* Ensure floating buttons are visible on mobile */
+    .conversation-list>div[style*="position: absolute"] {
+        bottom: 10px !important;
+        left: 10px !important;
+        right: 10px !important;
+        z-index: 100 !important;
+    }
+
+    #chat-window {
+        display: none;
+        /* Hidden by default on mobile */
+        width: 100%;
+        flex: 1;
+    }
+
+    /* Show back button on mobile */
+    .mobile-back-to-list {
+        display: block !important;
+    }
+
+    /* Ensure chat takes full height */
+    .chat-messages {
+        flex: 1;
+        height: 100%;
+    }
+}
+
+/* Light mode adjustments */
+body.light-mode .mobile-header {
+    background: #ffffff;
+    border-bottom-color: #dee2e6;
+}
+
+body.light-mode .mobile-profile-menu {
+    background: #f8f9fa;
+}
+
+body.light-mode .mobile-profile-header {
+    background: #ffffff;
+    border-bottom-color: #dee2e6;
+}
+
+body.light-mode .mobile-profile-item {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+}
+
+body.light-mode .mobile-profile-item:not(.non-clickable):hover {
+    background: #f8f9fa;
+}

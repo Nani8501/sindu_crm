@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile - Sindhu Software Training</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <style>
+        body {
+            background: var(--bg-primary);
+            padding: var(--spacing-xl);
+        }
+
+        .profile-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .profile-header {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-lg);
+        }
+
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            flex-shrink: 0;
+        }
+
+        .profile-info h1 {
+            margin: 0 0 var(--spacing-sm) 0;
+            font-size: 2rem;
+        }
+
+        .profile-details {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .detail-row {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: var(--spacing-md);
+            padding: var(--spacing-sm) 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .courses-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-xl);
+        }
+
+        .courses-section h2 {
+            margin-top: 0;
+        }
+
+        .back-button {
+            margin-bottom: var(--spacing-lg);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="profile-container">
+        <button class="btn btn-secondary back-button" onclick="window.close()">← Close</button>
+
+        <div class="profile-header">
+            <div class="profile-avatar" id="user-avatar">👤</div>
+            <div class="profile-info">
+                <h1 id="user-name">Loading...</h1>
+                <div id="user-role-badge"></div>
+            </div>
+        </div>
+
+        <div class="profile-details">
+            <h2>Contact Information</h2>
+            <div class="detail-row">
+                <div class="detail-label">Email:</div>
+                <div id="user-email">-</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Phone:</div>
+                <div id="user-phone">-</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Role:</div>
+                <div id="user-role">-</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">User ID:</div>
+                <div id="user-id">-</div>
+            </div>
+        </div>
+
+        <div class="courses-section">
+            <h2>Courses <span id="course-count">(0)</span></h2>
+            <div id="courses-list">
+                <p class="text-muted">Loading courses...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/user-profile.js"></script>
+</body>
+
+</html>

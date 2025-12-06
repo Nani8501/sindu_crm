@@ -1,0 +1,941 @@
+// Study Buddy Dedicated Section Logic - Multi-Session (ChatGPT Style)
+class StudyBuddySection {
+    constructor() {
+        this.aiUserId = 'ai-assistant';
+        this.currentConversationId = null;
+        this.conversations = [];
+        this.messages = [];
+        this.pollInterval = null;
+        this.isExternal = false;
+    }
+
+    async init() {
+        console.log('StudyBuddySection: init() called');
+        const container = document.getElementById('study-buddy-container');
+        if (!container) {
+            console.error('StudyBuddySection: Container not found!');
+            return;
+        }
+
+        this.renderUI();
+        await this.loadConversations();
+
+        // If we have conversations, load the most recent one
+        if (this.conversations.length > 0) {
+            await this.selectConversation(this.conversations[0].id);
+        } else {
+            // Otherwise show welcome state (no active chat)
+            this.currentConversationId = null;
+            this.messages = [];
+            this.renderMessages();
+        }
+
+        // Update header with user name and mode
+        this.updateHeaderMode();
+
+        this.attachListeners();
+    }
+
+    renderUI() {
+        const container = document.getElementById('study-buddy-container');
+
+        const htmlContent = `
+          <div class="chat-container-modern">
+              <!-- Sidebar -->
+              <div class="chat-sidebar">
+                  <div class="chat-sidebar-header">
+                      <div class="search-input-wrapper">
+                          <i class="ri-search-line"></i>
+                          <input type="text" placeholder="Search conversations..." id="study-buddy-search" oninput="studyBuddySection.filterConversations(this.value)">
+                      </div>
+                  </div>
+
+                  <div class="chat-list" id="history-list">
+                      <div style="padding: 10px; text-align: center; color: var(--chat-text-muted);">Loading history...</div>
+                  </div>
+                  
+                  <!-- Fixed Sidebar Footer -->
+                  <div class="chat-sidebar-footer" style="padding: 16px; border-top: 1px solid var(--chat-border);">
+                      <button class="btn-new-chat" onclick="studyBuddySection.startNewChat()">
+                          <i class="ri-add-line"></i> New Chat
+                      </button>
+                      <div class="ai-mode-toggle-sidebar" style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                          <span style="font-size: 0.8rem; color: var(--chat-text-muted);">AI Mode</span>
+                          <div class="toggle-switch-small" id="ai-mode-switch">
+                              <div class="toggle-option-small ${!this.isExternal ? 'active' : ''}" 
+                                   onclick="studyBuddySection.toggleMode(false)">
+                                  CRM
+                              </div>
+                              <div class="toggle-option-small ${this.isExternal ? 'active' : ''}" 
+                                   onclick="studyBuddySection.toggleMode(true)">
+                                  Web
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              <!-- Main Chat -->
+              <div class="chat-main" id="study-buddy-window">
+                  <div class="chat-header" id="chat-header-buddy" style="visibility: visible; position: relative;">
+                      
+                      <!-- Normal Header Content -->
+                      <div class="header-content" style="display: flex; flex: 1; align-items: center;">
+                          <div class="header-user" style="flex: 1; overflow: hidden; display: flex; align-items: center; gap: 10px;">
+                              <button class="mobile-back-btn" onclick="event.stopPropagation(); studyBuddySection.toggleSidebar()">
+                                <i class="ri-arrow-left-line"></i>
+                              </button>
+                              <div class="avatar-wrapper">
+                                   <i class="ri-robot-2-line" style="font-size: 24px; color: #fff; background: #006064; border-radius: 50%; padding: 8px;"></i>
+                                   <div class="status-dot status-online"></div>
+                              </div>
+                              <div style="min-width: 0;">
+                                  <h3 class="chat-name" id="buddy-chat-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Study Buddy - CRM</h3>
+                                  <div class="chat-time" style="text-align: left; color: #10b981;">Online</div>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div class="chat-messages" id="study-buddy-messages">
+                      <div class="empty-state" style="text-align: center; margin-top: 100px;">
+                          <i class="ri-robot-2-line" style="font-size: 4rem; color: #d1fae5;"></i>
+                          <h3 style="color: var(--chat-text); margin-top: 20px;">AI Study Buddy</h3>
+                          <p style="color: var(--chat-text-muted);">Start chatting to get help</p>
+                      </div>
+                  </div>
+
+                  <!-- Chat Footer (Input) -->
+                  <div class="chat-footer" id="chat-footer-buddy" style="display: flex;">
+                      <button class="btn-icon" onclick="document.getElementById('file-input-buddy').click()">
+                          <i class="ri-attachment-2"></i>
+                      </button>
+                      <input type="file" id="file-input-buddy" style="display: none;">
+                      
+                      <div class="input-wrapper">
+                          <input type="text" placeholder="Type a message..." id="study-buddy-input" onkeypress="if(event.key==='Enter') studyBuddySection.sendMessage()">
+                          <button class="btn-emoji">
+                              <i class="ri-emotion-line"></i>
+                          </button>
+                      </div>
+                      
+                      <button class="btn-send" onclick="studyBuddySection.sendMessage()">
+                          <i class="ri-send-plane-fill"></i>
+                      </button>
+                  </div>
+              </div>
+          </div>
+        `;
+
+        container.innerHTML = htmlContent;
+        // NO addStyles() call - use only modern-chat.css
+    }
+
+    height: 100 %;
+transition: transform 0.3s ease;
+z - index: 100;
+}
+
+            .sidebar - header {
+    padding: 20px 16px 16px;
+}
+
+            .search - box {
+    background: #f3f4f6;
+    border - radius: 10px;
+    padding: 8px 14px;
+    display: flex;
+    align - items: center;
+    gap: 8px;
+}
+
+            .search - box input {
+    background: transparent;
+    border: none;
+    outline: none;
+    width: 100 %;
+    font - size: 0.875rem;
+    color: #111827;
+}
+
+            .search - box input::placeholder {
+    color: #9ca3af;
+}
+
+            /* Chat Header */
+            .chat - header - buddy {
+    padding: 16px 20px;
+    background: white;
+    border - bottom: 1px solid #f3f4f6;
+    display: flex;
+    align - items: center;
+    gap: 12px;
+}
+
+            .chat - header - buddy.header - user {
+    cursor: pointer;
+}
+
+            .chat - header - buddy.avatar - wrapper {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align - items: center;
+    justify - content: center;
+    background: #e0f2f1;
+    border - radius: 50 %;
+}
+
+            .chat - header - buddy.chat - name {
+    margin: 0;
+    font - size: 1rem;
+    font - weight: 600;
+    color: #111827;
+}
+
+            .chat - header - buddy.chat - time {
+    font - size: 0.75rem;
+    color: #10b981;
+    margin - top: 2px;
+}
+
+            .mobile - back - btn {
+    display: none;
+    background: none;
+    border: none;
+    font - size: 20px;
+    cursor: pointer;
+    color: #111827;
+    padding: 4px;
+}
+
+
+            .new- chat - btn {
+    width: 100 %;
+    background: #006064;
+    color: white;
+    border: none;
+    padding: 12px 16px;
+    border - radius: 12px;
+    font - size: 0.95rem;
+    font - weight: 600;
+    cursor: pointer;
+    display: flex;
+    align - items: center;
+    justify - content: center;
+    gap: 6px;
+    transition: all 0.2s;
+    box - shadow: 0 4px 6px rgba(0, 96, 100, 0.2);
+}
+
+            .new- chat - btn:hover {
+    background: #004d40;
+    transform: translateY(-1px);
+    box - shadow: 0 6px 12px rgba(0, 96, 100, 0.3);
+}
+
+            .history - list {
+    flex: 1;
+    overflow - y: auto;
+    padding: 0 8px;
+}
+
+            .history - item {
+    display: flex;
+    align - items: center;
+    padding: 10px 12px;
+    border - radius: 10px;
+    margin - bottom: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    gap: 12px;
+    font - size: 0.9rem;
+    color: #111827;
+}
+
+            .history - item:hover {
+    background: #f9fafb;
+}
+
+            .history - item.active {
+    background: #e0f2f1;
+    font - weight: 500;
+}
+
+            .sidebar - footer {
+    padding: 15px;
+    border - top: 1px solid #f3f4f6;
+}
+
+            /* Main Chat Area */
+            .study - buddy - main {
+    flex: 1;
+    display: flex;
+    flex - direction: column;
+    background: #fafafa;
+    position: relative;
+}
+
+            .study - buddy - chat {
+    flex: 1;
+    display: flex;
+    flex - direction: column;
+    height: 100 %;
+}
+
+            .study - buddy - messages {
+    flex: 1;
+    overflow - y: auto;
+    padding: 2rem;
+    display: flex;
+    flex - direction: column;
+    gap: 1.5rem;
+    background: #fafafa;
+}
+
+            .mobile - header {
+    display: none;
+    padding: 10px;
+    background: #ffffff;
+    border - bottom: 1px solid #f3f4f6;
+    align - items: center;
+    gap: 10px;
+}
+
+            /* Input Area - Matches chat input */
+            .study - buddy - input - wrapper {
+    padding: 16px 20px 20px;
+    background: #ffffff;
+    border - top: 1px solid #f3f4f6;
+}
+
+            .study - buddy - input {
+    display: flex;
+    gap: 10px;
+    padding: 12px 16px;
+    background: white;
+    border: 1.5px solid #e5e7eb;
+    border - radius: 24px;
+    transition: all 0.2s;
+}
+
+            .study - buddy - input: focus - within {
+    border - color: #006064;
+    box - shadow: 0 0 0 3px rgba(0, 96, 100, 0.1);
+}
+
+            .study - buddy - input input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font - size: 0.95rem;
+    color: #111827;
+    outline: none;
+}
+
+            .study - buddy - input input::placeholder {
+    color: #9ca3af;
+}
+
+            .study - buddy - input.send - btn {
+    background: #006064;
+    color: white;
+    border: none;
+    border - radius: 50 %;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align - items: center;
+    justify - content: center;
+    transition: all 0.2s;
+    flex - shrink: 0;
+}
+
+            .study - buddy - input.send - btn:hover {
+    background: #004d40;
+    transform: scale(1.05);
+}
+
+            .input - footer {
+    text - align: center;
+    margin - top: 8px;
+    color: #9ca3af;
+    font - size: 0.75rem;
+}
+
+            /* Message Bubbles - Matched to Messages tab */
+            .message - bubble {
+    max - width: 70 %;
+    padding: 12px 16px;
+    border - radius: 16px;
+    line - height: 1.5;
+    font - size: 0.95rem;
+    word - wrap: break-word;
+    overflow - wrap: break-word;
+    position: relative;
+}
+            
+            .message - bubble.user {
+    align - self: flex - end;
+    background: #006064;
+    color: white;
+    border - bottom - right - radius: 4px;
+}
+            
+            .message - bubble.ai {
+    align - self: flex - start;
+    background: white;
+    color: #111827;
+    border: 1px solid #f3f4f6;
+    border - bottom - left - radius: 4px;
+    box - shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+            
+            .message - content {
+    display: block;
+}
+
+            /* Welcome Message */
+            .welcome - message {
+    text - align: center;
+    padding: 4rem 2rem;
+    color: #6b7280;
+}
+
+            .welcome - message i {
+    display: block;
+    margin - bottom: 1rem;
+}
+
+            .welcome - message h3 {
+    color: #111827;
+    margin - bottom: 0.5rem;
+}
+
+            /* AI Mode Toggle */
+            .ai - mode - toggle - sidebar {
+    display: flex;
+    justify - content: space - between;
+    align - items: center;
+}
+            
+            .mode - label {
+    font - size: 0.8rem;
+    color: #6b7280;
+}
+            
+            .toggle -switch-small {
+                display: flex;
+background: #f3f4f6;
+border - radius: 6px;
+padding: 2px;
+            }
+            
+            .toggle - option - small {
+    padding: 4px 10px;
+    font - size: 0.75rem;
+    cursor: pointer;
+    border - radius: 4px;
+    color: #6b7280;
+    transition: all 0.2s;
+}
+            
+            .toggle - option - small.active {
+    background: #006064;
+    color: white;
+}
+
+/* Dark Mode */
+[data - theme="dark"].study - buddy - wrapper {
+    background: #1e293b;
+}
+
+[data - theme="dark"].study - buddy - sidebar {
+    background: #1e293b;
+    border - right - color: #334155;
+}
+
+[data - theme="dark"].study - buddy - main {
+    background: #0f172a;
+}
+
+[data - theme="dark"].study - buddy - messages {
+    background: #0f172a;
+}
+
+[data - theme="dark"].history - item {
+    color: #e2e8f0;
+}
+
+[data - theme="dark"].history - item:hover {
+    background: #334155;
+}
+
+[data - theme="dark"].history - item.active {
+    background: #1e4e4e;
+}
+
+[data - theme="dark"].study - buddy - input - wrapper {
+    background: #1e293b;
+    border - top - color: #334155;
+}
+
+[data - theme="dark"].study - buddy - input {
+    background: #0f172a;
+    border - color: #334155;
+}
+
+[data - theme="dark"].study - buddy - input input {
+    color: #e2e8f0;
+}
+
+[data - theme="dark"].message - bubble.ai {
+    background: #1e293b;
+    color: #e2e8f0;
+    border - color: #334155;
+}
+
+[data - theme="dark"].sidebar - footer {
+    border - top - color: #334155;
+}
+
+[data - theme="dark"].mobile - header {
+    background: #1e293b;
+    border - bottom - color: #334155;
+}
+
+[data - theme="dark"].search - box {
+    background: #334155;
+}
+
+[data - theme="dark"].search - box input {
+    color: #e2e8f0;
+}
+
+[data - theme="dark"].chat - header - buddy {
+    background: #1e293b;
+    border - bottom - color: #334155;
+}
+
+[data - theme="dark"].chat - header - buddy.chat - name {
+    color: #e2e8f0;
+}
+
+[data - theme="dark"].chat - header - buddy.avatar - wrapper {
+    background: #1e4e4e;
+}
+
+[data - theme="dark"].mobile - back - btn {
+    color: #e2e8f0;
+}
+
+/* Responsive */
+@media(max - width: 768px) {
+                .study - buddy - wrapper {
+        border - radius: 0;
+    }
+
+                .study - buddy - sidebar {
+        position: absolute;
+        height: 100 %;
+        transform: translateX(-100 %);
+        box - shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+                
+                .study - buddy - sidebar.open {
+        transform: translateX(0);
+    }
+                
+                .mobile - header {
+        display: flex;
+    }
+                
+                .study - buddy - input - wrapper {
+        padding: 12px 16px;
+    }
+
+                .message - bubble {
+        max - width: 85 %;
+    }
+}
+
+/* Typing Animation */
+@keyframes blink {
+    0 % { opacity: .2; }
+    20 % { opacity: 1; }
+    100 % { opacity: .2; }
+}
+            
+            .typing - dots span {
+    animation - name: blink;
+    animation - duration: 1.4s;
+    animation - iteration - count: infinite;
+    animation - fill - mode: both;
+}
+            
+            .typing - dots span: nth - child(2) { animation - delay: .2s; }
+            .typing - dots span: nth - child(3) { animation - delay: .4s; }
+`;
+        document.head.appendChild(style);
+    }
+
+    async loadConversations() {
+        try {
+            const listContainer = document.getElementById('history-list');
+            if (listContainer) listContainer.innerHTML = '<div class="loading-history">Loading history...</div>';
+
+            const response = await fetch('/api/messages/ai/conversations', {
+                headers: { 'Authorization': `Bearer ${ localStorage.getItem('token') } ` }
+            });
+
+            if (!response.ok) throw new Error(`HTTP error! status: ${ response.status } `);
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.conversations = data.conversations;
+
+                // If no conversations found, automatically start a new one so the user isn't staring at blank space
+                if (this.conversations.length === 0) {
+                    await this.startNewChat();
+                } else {
+                    this.renderHistoryList();
+                }
+            } else {
+                throw new Error(data.message || 'Failed to load history');
+            }
+        } catch (error) {
+            console.error('Error loading history:', error);
+            const listContainer = document.getElementById('history-list');
+            if (listContainer) {
+                listContainer.innerHTML = `
+    < div class="error-history" style = "padding:10px; color: #ff6b6b; font-size: 0.9rem;" >
+        Failed to load.< br >
+                        <small style="opacity:0.8">${error.message}</small><br>
+                        <button onclick="studyBuddySection.loadConversations()" style="margin-top:5px; background:none; border:1px solid #555; color:white; padding:2px 8px; border-radius:4px; cursor:pointer;">Retry</button>
+                    </div>
+`;
+            }
+        }
+    }
+
+    renderHistoryList() {
+        const listContainer = document.getElementById('history-list');
+
+        if (this.conversations.length === 0) {
+            listContainer.innerHTML = '<div style="padding:10px; opacity:0.6; font-size:0.9rem;">No history yet. Start a new chat!</div>';
+            return;
+        }
+
+        listContainer.innerHTML = this.conversations.map(conv => `
+    < div class="history-item ${conv.id === this.currentConversationId ? 'active' : ''}"
+onclick = "studyBuddySection.selectConversation(${conv.id})" >
+                <i class="ri-message-3-line"></i>
+                <span>${conv.name || 'New Chat'}</span>
+            </div >
+    `).join('');
+    }
+
+    async selectConversation(id) {
+        this.currentConversationId = id;
+        this.renderHistoryList(); // Update active state
+
+        // Show chat header
+        const chatHeader = document.getElementById('chat-header-buddy');
+        if (chatHeader) {
+            chatHeader.style.display = 'flex';
+            // Update conversation name if available
+            const conv = this.conversations.find(c => c.id === id);
+            if (conv && conv.name) {
+                const nameElement = document.getElementById('buddy-chat-name');
+                if (nameElement) nameElement.textContent = conv.name;
+            }
+        }
+
+        // Load messages for this conversation
+        try {
+            const response = await fetch(`/ api / messages / conversation / ${ id } `, {
+                headers: { 'Authorization': `Bearer ${ localStorage.getItem('token') } ` }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                this.messages = data.messages || [];
+                // Update conversation list locally if needed (e.g., name change)
+                this.renderMessages();
+            }
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
+    async startNewChat() {
+        try {
+            const response = await fetch('/api/messages/ai/start', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${ localStorage.getItem('token') } `,
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // Add to list and select
+                this.conversations.unshift(data.conversation);
+                await this.selectConversation(data.conversation.id);
+                // On mobile, close sidebar
+                this.toggleSidebar(false);
+                // Focus input
+                setTimeout(() => document.getElementById('study-buddy-input')?.focus(), 100);
+            }
+        } catch (error) {
+            console.error('Error starting new chat:', error);
+        }
+    }
+
+    filterConversations(searchTerm) {
+        const items = document.querySelectorAll('.history-item');
+        const term = searchTerm.toLowerCase().trim();
+
+        items.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            if (text.includes(term) || term === '') {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    async sendMessage() {
+        const input = document.getElementById('study-buddy-input');
+        const content = input.value.trim();
+        if (!content) return;
+
+        // If no conversation selected (shouldn't happen usually if init worked, but safe fallback)
+        if (!this.currentConversationId) {
+            await this.startNewChat();
+        }
+
+        input.value = '';
+
+        // Optimistic UI for User Message
+        this.messages.push({
+            id: 'temp-' + Date.now(),
+            content: content,
+            senderId: 'me',
+            createdAt: new Date()
+        });
+
+        // Add optimistic "Thinking..." placeholder
+        const tempAiId = 'temp-ai-' + Date.now();
+        this.messages.push({
+            id: tempAiId,
+            content: '<span class="typing-dots">Thinking<span>.</span><span>.</span><span>.</span></span>',
+            senderId: this.aiUserId,
+            createdAt: new Date(),
+            isTyping: true
+        });
+
+        this.renderMessages();
+
+        try {
+            const response = await fetch('/api/messages', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ localStorage.getItem('token') } `
+                },
+                body: JSON.stringify({
+                    conversationId: this.currentConversationId,
+                    receiver: 'ai-assistant', // Required by backend validation
+                    content: content,
+                    isExternal: this.isExternal
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                // Update conversation title if provided (Realtime Rename)
+                if (data.conversationName) {
+                    const conv = this.conversations.find(c => c.id === this.currentConversationId);
+                    if (conv) conv.name = data.conversationName;
+
+                    // Update DOM element directly without full re-render
+                    const sidebarItem = document.querySelector(`.history - item[onclick *= "${this.currentConversationId}"] span`);
+                    if (sidebarItem) sidebarItem.textContent = data.conversationName;
+                }
+
+                // Smart Polling: Wait for AI response
+                // Poll every 1.5s for up to 30s
+                let attempts = 0;
+                const maxAttempts = 20;
+
+                const pollAi = setInterval(async () => {
+                    attempts++;
+                    try {
+                        const checkResp = await fetch(`/ api / messages / conversation / ${ this.currentConversationId } `, {
+                            headers: { 'Authorization': `Bearer ${ localStorage.getItem('token') } ` }
+                        });
+                        const checkData = await checkResp.json();
+
+                        if (checkData.success && checkData.messages && checkData.messages.length > 0) {
+                            const lastMsg = checkData.messages[checkData.messages.length - 1];
+                            // If the last message is NOT from me (it's from AI) OR we just have more messages than before (excluding our temp ones)
+                            // Ideally, check if senderId == 'ai-assistant'
+                            if (lastMsg.senderId === 'ai-assistant') {
+                                clearInterval(pollAi);
+                                this.messages = checkData.messages;
+                                this.renderMessages();
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Polling error', e);
+                    }
+
+                    if (attempts >= maxAttempts) {
+                        clearInterval(pollAi);
+                        // Remove typing indicator if timeout
+                        this.messages = this.messages.filter(m => m.id !== tempAiId);
+                        this.renderMessages();
+                    }
+                }, 1500);
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            // Remove typing indicator on error
+            this.messages = this.messages.filter(m => m.id !== tempAiId);
+            this.renderMessages();
+            window.notify?.error('Failed to send message');
+        }
+    }
+
+    renderMessages() {
+        const container = document.getElementById('study-buddy-messages');
+        if (!container) return;
+
+        if (this.messages.length === 0) {
+            container.innerHTML = `
+    < div class="empty-state" style = "text-align: center; margin-top: 100px;" >
+                    <i class="ri-robot-2-line" style="font-size: 4rem; color: #d1fae5;"></i>
+                    <h3 style="color: var(--chat-text); margin-top: 20px;">${this.isExternal ? '🌐 External AI' : '💾 Internal CRM AI'}</h3>
+                    <p style="color: var(--chat-text-muted);">Start chatting in this mode</p>
+                </div >
+    `;
+            return;
+        }
+
+        container.innerHTML = this.messages.map(msg => {
+            const isUser = msg.senderId !== this.aiUserId;
+            let content = this.escapeHtml(msg.content);
+
+            if (!isUser) {
+                content = content
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>')
+                    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+            }
+
+            return `
+    < div class="msg-group ${isUser ? 'msg-sent' : 'msg-received'}" >
+        ${
+    !isUser ? `
+                    <div class="msg-avatar">
+                        <i class="ri-robot-2-line" style="font-size: 20px; color: #006064;"></i>
+                    </div>
+                    ` : ''
+}
+<div class="msg-bubble">
+    <div class="msg-content">${content}</div>
+    <div class="msg-time">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+</div>
+                </div >
+    `;
+        }).join('');
+
+        setTimeout(() => container.scrollTop = container.scrollHeight, 100);
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    toggleMode(isExternal) {
+        this.isExternal = isExternal;
+
+        // Update toggle switch visual state
+        document.getElementById('ai-mode-switch').innerHTML = `
+    < div class="toggle-option-small ${!this.isExternal ? 'active' : ''}"
+onclick = "studyBuddySection.toggleMode(false)" >
+    CRM
+             </div >
+    <div class="toggle-option-small ${this.isExternal ? 'active' : ''}'"
+        onclick="studyBuddySection.toggleMode(true)">
+        Web
+    </div>
+`;
+
+        // Update header text with current mode
+        this.updateHeaderMode();
+
+        window.notify?.info(`Mode: ${ this.isExternal ? 'External Web' : 'Internal CRM' } `);
+    }
+
+    updateHeaderMode() {
+        const headerName = document.getElementById('buddy-chat-name');
+        if (headerName) {
+            const mode = this.isExternal ? 'Web' : 'CRM';
+            const userName = localStorage.getItem('user_name') || 'Study Buddy';
+            headerName.textContent = `${ userName } - ${ mode } `;
+        }
+    }
+
+    toggleSidebar(forceState) {
+        const sidebar = document.getElementById('study-buddy-sidebar');
+        if (typeof forceState === 'boolean') {
+            if (forceState) sidebar.classList.add('open');
+            else sidebar.classList.remove('open');
+        } else {
+            sidebar.classList.toggle('open');
+        }
+    }
+
+    startPolling() {
+        if (this.pollInterval) clearInterval(this.pollInterval);
+        this.pollInterval = setInterval(() => {
+            if (this.currentConversationId) {
+                this.selectConversation(this.currentConversationId);
+            }
+        }, 4000);
+    }
+
+    stopPolling() {
+        if (this.pollInterval) clearInterval(this.pollInterval);
+    }
+
+    attachListeners() {
+        document.addEventListener('sectionChanged', (e) => {
+            if (e.detail !== 'study-buddy') this.stopPolling();
+            else this.startPolling();
+        });
+    }
+}
+
+window.StudyBuddySection = StudyBuddySection;
+
+const originalSwitchSection = window.switchToSection;
+window.switchToSection = function (section) {
+    if (originalSwitchSection) originalSwitchSection(section);
+
+    if (section === 'study-buddy') {
+        if (!window.studyBuddySection) {
+            window.studyBuddySection = new StudyBuddySection();
+        }
+        setTimeout(() => window.studyBuddySection.init(), 100);
+    }
+    document.dispatchEvent(new CustomEvent('sectionChanged', { detail: section }));
+};

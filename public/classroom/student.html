@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Classroom - Student</title>
+    <link rel="stylesheet" href="/css/classroom.css?v=3">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="classroom-container">
+        <header class="classroom-header">
+            <div class="classroom-title" id="classroomTitle">Loading Classroom...</div>
+            <div class="classroom-stats">
+                <div class="stat-item">
+                    🌐 <span id="connectionStatus">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="classroom-main">
+            <div class="video-container">
+                <div class="video-grid" id="videoGrid">
+                    <!-- Videos will be added dynamically -->
+                </div>
+            </div>
+
+            <aside class="classroom-sidebar">
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" data-tab="chat">💬 Chat</button>
+                    <button class="sidebar-tab" data-tab="participants">👥 Participants</button>
+                </div>
+                <div class="sidebar-content">
+                    <!-- Chat Tab -->
+                    <div id="chatTab" class="tab-content active">
+                        <div class="chat-messages" id="chatMessages"></div>
+                        <div class="chat-input-container">
+                            <input type="text" id="chatInput" placeholder="Type a message..." />
+                            <button id="sendChatBtn">Send</button>
+                        </div>
+                    </div>
+
+                    <!-- Participants Tab -->
+                    <div id="participantsTab" class="tab-content" style="display: none;">
+                        <div id="participantsList"></div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <div class="classroom-toolbar">
+            <button class="toolbar-btn" id="raiseHandBtn" title="Raise Hand">
+                🙋 <span>Raise Hand</span>
+            </button>
+            <button class="toolbar-btn" id="requestMicBtn" title="Request Microphone Permission">
+                🎤 <span>Request Mic</span>
+            </button>
+            <button class="toolbar-btn" id="requestCameraBtn" title="Request Camera Permission">
+                📹 <span>Request Camera</span>
+            </button>
+            <button class="toolbar-btn" id="requestScreenShareBtn" title="Request Screen Share Permission">
+                🖥️ <span>Request Screen Share</span>
+            </button>
+            <button class="toolbar-btn danger" id="leaveClassBtn" title="Leave Classroom">
+                🚪 <span>Leave</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Remote Control Request Modal -->
+    <div id="remoteControlRequestModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">🎮 Remote Control Request</div>
+            <div class="modal-body">
+                <strong id="teacherName"></strong> wants to control your screen.
+                <br><br>
+                <p style="color: #fbbf24;">⚠️ This will allow the teacher to move your mouse and type on your keyboard
+                    while you're sharing your screen.</p>
+                <br>
+                <p>Do you want to allow this?</p>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn primary" id="approveRemoteControlBtn">✓ Allow</button>
+                <button class="modal-btn secondary" id="denyRemoteControlBtn">✗ Deny</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remote Control Active Notice -->
+    <div id="remoteControlActiveNotice" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header" style="background: #f59e0b;">⚠️ Teacher is Controlling Your Screen</div>
+            <div class="modal-body">
+                The teacher can now move your mouse and type on your keyboard.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn danger" id="stopRemoteControlStudentBtn">Stop Control</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Remote Cursor Overlay -->
+    <div id="remoteCursor" class="remote-cursor"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/classroom/mediasoup-client.js"></script>
+    <script src="/js/classroom/student-client.js?v=4"></script>
+</body>
+
+</html>
