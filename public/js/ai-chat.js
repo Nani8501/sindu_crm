@@ -227,7 +227,11 @@ class AIChat {
         if (msg) {
             navigator.clipboard.writeText(msg.content).then(() => {
                 // Visual feedback could be added here
-                alert('Copied to clipboard!');
+                if (window.notify) {
+                    window.notify.success('Copied to clipboard!');
+                } else {
+                    console.log('Copied to clipboard!');
+                }
             });
         }
     }
@@ -235,7 +239,11 @@ class AIChat {
     printSelected() {
         const checkboxes = document.querySelectorAll('.ai-checkbox:checked');
         if (checkboxes.length === 0) {
-            alert('Please select at least one message to print.');
+            if (window.notify) {
+                window.notify.warning('Please select at least one message to print.');
+            } else {
+                console.warn('Please select at least one message to print.');
+            }
             return;
         }
 
@@ -326,8 +334,10 @@ class AIChat {
                 this.loadChat();
             }
         } catch (error) {
-            console.error('Error sending message:', error);
-            alert('Failed to send message');
+            console.error('Send message error:', error);
+            if (window.notify) {
+                window.notify.error('Failed to send message');
+            }
         }
     }
 

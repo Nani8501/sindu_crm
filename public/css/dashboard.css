@@ -26,13 +26,73 @@ body {
 
 
 .sidebar-header {
-    padding: var(--spacing-lg) var(--spacing-md);
+    padding: var(--spacing-sm) 0;
     border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    /* Stack logo and toggle */
+    align-items: center;
+    gap: 15px;
+    height: auto;
+    /* Override fixed height from styles.css */
+    min-height: 100px;
+    /* Ensure enough space */
+    /* Spacing between logo and toggle */
+}
+
+.sidebar.expanded .sidebar-header {
+    flex-direction: row;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    gap: 0;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 40px;
+    /* Fixed height for consistency */
+    width: 100%;
+}
+
+.logo-img {
+    filter: brightness(0) invert(1);
+    /* Mask with white color for dark theme */
+    transition: opacity 0.3s ease;
+}
+
+/* Default state: Collapsed */
+.logo-collapsed {
+    display: block;
+}
+
+.logo-expanded {
+    display: none;
+}
+
+/* Expanded state */
+.sidebar.expanded .logo-collapsed {
+    display: none;
+}
+
+.sidebar.expanded .logo-expanded {
+    display: block;
+    height: 50px !important;
+    /* Larger for expanded view if needed */
+}
+
+/* Hide old text */
+.logo-text {
+    display: none;
 }
 
 .sidebar-header h2 {
     font-size: 1.75rem;
     margin-bottom: var(--spacing-xs);
+    display: none;
+    /* Hide old h2 if present */
 }
 
 .sidebar-subtitle {
@@ -78,6 +138,8 @@ body {
 .sidebar-footer {
     padding: var(--spacing-md);
     border-top: 1px solid var(--border-color);
+    margin-top: auto;
+    /* Ensure it pushes to bottom even if nav doesn't fill */
 }
 
 /* Logo styling for dark/light themes */
@@ -1769,6 +1831,7 @@ body:not(.light-mode) .conversation-avatar {
     border-radius: 4px;
     font-size: 0.85rem;
 }
+
 /* === FLOATING ACTIONS === */
 
 .floating-actions {
@@ -1889,11 +1952,11 @@ body:not(.light-mode) .conversation-avatar {
         top: 10px;
         right: 10px;
     }
-    
+
     .floating-actions .user-name {
         display: none;
     }
-    
+
     .floating-actions .profile-trigger {
         padding: 8px;
     }

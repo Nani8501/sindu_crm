@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Check if user is a student or admin, otherwise redirect
   if (currentUser.role !== 'student' && currentUser.role !== 'admin') {
-    alert('You do not have permission to view this page');
+    window.notify.error('You do not have permission to view this page');
     window.location.href = '/';
     return;
   }
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     isAdminView = false;
   } else {
     // Invalid access (e.g., professor trying to access student dashboard without permission)
-    alert('You do not have permission to view this page');
+    window.notify.error('You do not have permission to view this page');
     window.location.href = '/';
     return;
   }
@@ -100,7 +100,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Display name
-  document.getElementById('user-name').textContent = studentName;
+  if (document.getElementById('sidebar-user-name')) {
+    document.getElementById('sidebar-user-name').textContent = studentName;
+  }
+  if (document.getElementById('header-user-name')) {
+    document.getElementById('header-user-name').textContent = studentName;
+  }
 
   // Show admin banner if admin is viewing
   if (isAdminView) {
@@ -1205,7 +1210,7 @@ async function showAvailableCourses() {
 
     document.getElementById('modal-container').innerHTML = modal;
   } catch (error) {
-    alert('Error loading courses: ' + error.message);
+    window.notify.error('Error loading courses: ' + error.message);
   }
 }
 
@@ -1234,15 +1239,16 @@ async function enrollInCourse(courseId) {
 
     const data = await response.json();
     if (data.success) {
-      alert(isAdminView ? 'Student enrolled successfully!' : 'Successfully enrolled in course!');
+      window.notify.success(isAdminView ? 'Student enrolled successfully!' : 'Successfully enrolled in course!');
       closeModal();
       await loadAllData();
       renderCourses();
     } else {
-      alert(data.message || 'Error enrolling in course');
+      window.notify.error(data.message || 'Error enrolling in course');
     }
   } catch (error) {
-    alert('Error enrolling in course: ' + error.message);
+    console.error('Error enrolling in course:', error);
+    window.notify.error('Error enrolling in course: ' + error.message);
   }
 }
 
@@ -1298,15 +1304,16 @@ async function submitAssignment(e, assignmentId) {
 
     const data = await response.json();
     if (data.success) {
-      alert(isAdminView ? 'Assignment submitted for student!' : 'Assignment submitted successfully!');
+      window.notify.success(isAdminView ? 'Assignment submitted for student!' : 'Assignment submitted successfully!');
       closeModal();
       await loadAllData();
       renderAssignments();
     } else {
-      alert(data.message || 'Error submitting assignment');
+      window.notify.error(data.message || 'Error submitting assignment');
     }
   } catch (error) {
-    alert('Error submitting assignment: ' + error.message);
+    console.error('Error submitting assignment:', error);
+    window.notify.error('Error submitting assignment: ' + error.message);
   }
 }
 
@@ -1322,10 +1329,11 @@ async function sendMessage(e) {
   try {
     // Note: In a real app, you'd look up the receiver by email first
     // For now, we'll show an alert that the API expects receiver ID
-    alert('Note: Message sending requires professor ID. Please contact your professor directly or they will message you first.');
+    window.notify.info('Note: Message sending requires professor ID. Please contact your professor directly or they will message you first.');
     closeModal();
   } catch (error) {
-    alert('Error sending message: ' + error.message);
+    console.error('Error sending message:', error);
+    window.notify.error('Error sending message: ' + error.message);
   }
 }
 
@@ -1988,7 +1996,8 @@ window.copySelectedMessages = function () {
     if (window.notify) {
       window.notify.success(`${selected.length} message(s) copied to clipboard!`);
     } else {
-      alert(`${selected.length} message(s) copied!`);
+      // Fallback
+      console.log(`${selected.length} message(s) copied!`);
     }
     toggleSelectionMode(false);
   }).catch(err => {
@@ -2092,8 +2101,8 @@ window.sendMessage = async function (e, conversationId = window.currentConversat
       // Ideally show error in UI
     }
   } catch (error) {
-    console.error('Error sending message:', error);
-    alert('Failed to send message');
+    console.error('Send message error:', error);
+    window.notify.error('Failed to send message');
   }
 }
 
@@ -2120,7 +2129,7 @@ window.startNewConversation = async function () {
       }
     } catch (error) {
       console.error('Error loading users:', error);
-      alert('Failed to load users');
+      window.notify.error('Failed to load users');
       return;
     }
   }
@@ -2176,11 +2185,11 @@ window.initiateChat = async function () {
     if (data.success) {
       loadChatHistory(data.conversation.id, userName);
     } else {
-      alert('Failed to start conversation: ' + (data.message || 'Unknown error'));
+      window.notify.error('Failed to start conversation: ' + (data.message || 'Unknown error'));
     }
   } catch (error) {
-    console.error('Error initiating chat:', error);
-    alert('Failed to start conversation');
+    console.error('Start conversation error:', error);
+    window.notify.error('Failed to start conversation');
   }
 }
 
@@ -2197,7 +2206,7 @@ window.openCreateGroupModal = async function () {
       }
     } catch (error) {
       console.error('Error loading users:', error);
-      alert('Failed to load users');
+      window.notify.error('Failed to load users');
       return;
     }
   }
@@ -2242,10 +2251,9 @@ window.createGroup = async function (event) {
   event.preventDefault();
   const name = document.getElementById('group-name').value;
   const checkboxes = document.querySelectorAll('input[name="participants"]:checked');
-  const participants = Array.from(checkboxes).map(cb => cb.value);
-
-  if (participants.length === 0) {
-    alert('Please select at least one participant');
+  const selected = Array.from(document.querySelectorAll('input[name="participants"]:checked')).map(cb => cb.value);
+  if (selected.length === 0) {
+    window.notify.warning('Please select at least one participant');
     return;
   }
 
@@ -2256,7 +2264,7 @@ window.createGroup = async function (event) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       },
-      body: JSON.stringify({ name, participants })
+      body: JSON.stringify({ name, participants: selected })
     });
 
     const data = await response.json();
@@ -2266,17 +2274,19 @@ window.createGroup = async function (event) {
       // Open the new group chat
       loadChatHistory(data.conversation.id, data.conversation.name, true);
     } else {
-      alert(data.message || 'Failed to create group');
+      window.notify.error(data.message || 'Failed to create group');
     }
   } catch (error) {
-    console.error('Error creating group:', error);
-    alert('An error occurred');
+    console.error('Create group error:', error);
+    window.notify.error('An error occurred');
   }
 }
 
 // Close modal
 function closeModal(event) {
-  if (event) event.preventDefault();
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
   document.getElementById('modal-container').innerHTML = '';
 }
 
@@ -2396,7 +2406,7 @@ window.refreshAIInsights = function () {
 // Notifications
 window.toggleNotifications = function () {
   // For now, just show a simple alert or modal
-  alert("No new notifications at this time.");
+  window.notify.info("No new notifications at this time.");
 }
 
 // Theme Management
@@ -2423,5 +2433,208 @@ function updateThemeIcon(theme) {
   }
 }
 
+// Profile Menu
+window.toggleProfileMenu = function (event) {
+  if (event) event.stopPropagation();
+  const dropdown = document.querySelector('.user-profile-dropdown');
+  if (dropdown) {
+    dropdown.classList.toggle('active');
+  }
+}
+
+// Global click handler for dropdowns
+document.addEventListener('click', (e) => {
+  // Close profile dropdown if clicked outside
+  const dropdown = document.querySelector('.user-profile-dropdown');
+  if (dropdown && dropdown.classList.contains('active') && !dropdown.contains(e.target)) {
+    dropdown.classList.remove('active');
+  }
+});
+
 // Initialize on load
-document.addEventListener('DOMContentLoaded', initTheme);
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+
+  // Attach theme toggle listener
+  const themeBtn = document.getElementById('theme-toggle');
+  if (themeBtn) {
+    themeBtn.addEventListener('click', window.toggleTheme);
+  }
+
+  // Attach profile menu listener
+  const profileTrigger = document.querySelector('.profile-trigger');
+  if (profileTrigger) {
+    profileTrigger.addEventListener('click', window.toggleProfileMenu);
+  }
+
+  // Load User Info
+  loadUserInfo();
+});
+
+async function loadUserInfo() {
+  try {
+    const response = await fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      currentUser = data.user;
+
+      // Update Sidebar Info
+      if (document.getElementById('sidebar-user-name')) {
+        document.getElementById('sidebar-user-name').textContent = currentUser.name;
+      }
+
+      // Update Header Info
+      if (document.getElementById('header-user-name')) {
+        document.getElementById('header-user-name').textContent = currentUser.name;
+      }
+      if (document.getElementById('header-avatar')) {
+        document.getElementById('header-avatar').textContent = currentUser.name.charAt(0).toUpperCase();
+      }
+
+      // Update Dropdown Info
+      if (document.getElementById('menu-user-name')) {
+        document.getElementById('menu-user-name').textContent = currentUser.name;
+      }
+      if (document.getElementById('menu-user-role')) {
+        const role = currentUser.role || 'Student';
+        document.getElementById('menu-user-role').textContent = role.charAt(0).toUpperCase() + role.slice(1);
+      }
+      if (document.getElementById('menu-avatar')) {
+        document.getElementById('menu-avatar').textContent = currentUser.name.charAt(0).toUpperCase();
+      }
+    }
+  } catch (error) {
+    console.error('Error loading user info:', error);
+    // If auth fails, we might want to logout or just log error
+    if (error.message && error.message.includes('401')) {
+      window.location.href = '/';
+    }
+  }
+}
+
+// Open Profile Modal
+window.openProfileModal = function () {
+  if (!currentUser) return;
+
+  const lastLoginDate = currentUser.lastLogin ? new Date(currentUser.lastLogin).toLocaleString() : 'Never';
+
+  const modalHtml = `
+      <div class="modal" id="profile-modal" style="display: flex;">
+        <div class="modal-content" style="max-width: 500px;">
+          <div class="modal-header">
+            <h2>My Profile</h2>
+            <button class="modal-close" onclick="closeModal('profile-modal')">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="profile-form" onsubmit="saveProfile(event)">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <div style="width: 100px; height: 100px; background: var(--primary-gradient); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white; margin: 0 auto;">
+                  ${currentUser.name.charAt(0).toUpperCase()}
+                </div>
+                <h3 style="margin-top: 10px;">${currentUser.name}</h3>
+                <span class="badge badge-primary">${currentUser.role.toUpperCase()}</span>
+              </div>
+
+              <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" id="profile-name" name="name" value="${currentUser.name}" readonly disabled style="opacity: 0.7;">
+              </div>
+
+              <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="profile-email" name="email" value="${currentUser.email}" readonly disabled style="opacity: 0.7;">
+              </div>
+
+             <div class="form-group">
+                <label>User ID</label>
+                <input type="text" value="${currentUser.id}" readonly disabled style="opacity: 0.7; background: var(--bg-tertiary);">
+              </div>
+
+              <div class="modal-actions" style="justify-content: space-between;">
+                <button type="button" class="btn btn-secondary" onclick="openChangePasswordModal()">Change Password</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal('profile-modal')">Close</button>
+              </div>
+            </form>
+          </div>
+        </div>
+    </div>
+      `;
+
+  document.getElementById('modal-container').innerHTML = modalHtml;
+}
+
+// Open Change Password Modal
+window.openChangePasswordModal = function () {
+  const modalHtml = `
+      <div class="modal" id="change-password-modal" style="display: flex;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Change Password</h2>
+            <button class="modal-close" onclick="closeModal('change-password-modal')">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="change-password-form" onsubmit="handlePasswordChange(event)">
+              <div class="form-group">
+                <label>Current Password</label>
+                <input type="password" id="current-password" required>
+              </div>
+              <div class="form-group">
+                <label>New Password</label>
+                <input type="password" id="new-password" required minlength="6">
+              </div>
+              <div class="form-group">
+                <label>Confirm New Password</label>
+                <input type="password" id="confirm-password" required minlength="6">
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('change-password-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Password</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+  document.getElementById('modal-container').innerHTML = modalHtml;
+  // Close profile modal if open
+  const profileModal = document.getElementById('profile-modal');
+  if (profileModal) profileModal.remove();
+}
+
+window.handlePasswordChange = async function (e) {
+  e.preventDefault();
+  const currentPassword = document.getElementById('current-password').value;
+  const newPassword = document.getElementById('new-password').value;
+  const confirmPassword = document.getElementById('confirm-password').value;
+
+  if (newPassword !== confirmPassword) {
+    window.notify.error('New passwords do not match');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/updatepassword', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const data = await response.json();
+    if (data.success) {
+      window.notify.success('Password updated successfully');
+      closeModal('change-password-modal');
+    } else {
+      window.notify.error(data.message || 'Failed to update password');
+    }
+  } catch (error) {
+    console.error('Password update error:', error);
+    window.notify.error('An error occurred');
+  }
+}

@@ -21,6 +21,16 @@
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
+/* Fix height for Study Buddy Container to enable internal scrolling */
+#study-buddy-container {
+    height: calc(100vh - 180px);
+    min-height: 500px;
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
 /* === LEFT SIDEBAR === */
 .chat-sidebar {
     width: 280px;

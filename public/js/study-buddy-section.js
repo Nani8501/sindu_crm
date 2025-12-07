@@ -48,48 +48,79 @@ class StudyBuddySection {
                   
                   <!-- Fixed Sidebar Footer -->
                   <div class="chat-sidebar-footer" style="padding: 16px; border-top: 1px solid var(--chat-border);">
-                      <button class="btn-new-chat" onclick="studyBuddySection.startNewChat()">
-                          <i class="ri-add-line"></i> New Chat
+                      <button class="btn-new-chat" onclick="window.studyBuddySection.startNewChat()">
+                          <i class="ri-add-line"></i> Create New
                       </button>
-                      <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
-                          <span style="font-size: 0.8rem; color: var(--chat-text-muted);">AI Mode</span>
-                          <div class="toggle-switch-small" id="ai-mode-switch" style="display: flex; background: #f3f4f6; border-radius: 6px; padding: 2px;">
-                              <div class="toggle-option-small ${!this.isExternal ? 'active' : ''}" 
-                                   onclick="studyBuddySection.toggleMode(false)" 
-                                   style="padding: 4px 10px; font-size: 0.75rem; cursor: pointer; border-radius: 4px; color: #6b7280; ${!this.isExternal ? 'background: #006064; color: white;' : ''}">
-                                  CRM
-                              </div>
-                              <div class="toggle-option-small ${this.isExternal ? 'active' : ''}" 
-                                   onclick="studyBuddySection.toggleMode(true)"
-                                   style="padding: 4px 10px; font-size: 0.75rem; cursor: pointer; border-radius: 4px; color: #6b7280; ${this.isExternal ? 'background: #006064; color: white;' : ''}">
-                                  Web
-                              </div>
-                          </div>
-                      </div>
                   </div>
               </div>
 
               <!-- Main Chat -->
               <div class="chat-main" id="study-buddy-window">
                   <div class="chat-header" id="chat-header-buddy" style="visibility: visible; position: relative;">
-                      
-                      <!-- Normal Header Content -->
-                      <div class="header-content" style="display: flex; flex: 1; align-items: center;">
-                          <div class="header-user" style="flex: 1; overflow: hidden; display: flex; align-items: center; gap: 10px;">
-                              <button class="mobile-back-btn" onclick="event.stopPropagation(); studyBuddySection.toggleSidebar()">
-                                <i class="ri-arrow-left-line"></i>
+                  
+                  <!-- Selection Header (Overlay) -->
+                  <div class="selection-header" id="buddy-selection-header">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                          <button class="btn-icon" onclick="window.studyBuddySection.toggleSelectionMode(false)">
+                              <i class="ri-close-line"></i>
+                          </button>
+                          <span id="buddy-selection-count" style="font-weight: 600;">0 Selected</span>
+                      </div>
+                      <div style="display: flex; gap: 10px;">
+                          <button class="btn-icon" onclick="window.studyBuddySection.copySelectedMessages()" title="Copy Text">
+                              <i class="ri-file-copy-line"></i>
+                          </button>
+                          <button class="btn-icon" onclick="window.studyBuddySection.deleteSelectedMessages()" style="color: #ef4444;" title="Delete">
+                              <i class="ri-delete-bin-line"></i>
+                          </button>
+                      </div>
+                  </div>
+
+                  <!-- Search Bar (Initially Hidden) -->
+                  <div class="chat-header-search" id="buddy-chat-search-bar" style="display: none;">
+                      <i class="ri-search-line"></i>
+                      <input type="text" placeholder="Search in chat..." onkeyup="window.studyBuddySection.searchInChat(this.value)">
+                      <i class="ri-close-circle-fill" onclick="window.studyBuddySection.toggleSearch()" style="left: auto; right: 12px; cursor: pointer; color: #9ca3af;"></i>
+                  </div>
+
+                  <!-- Normal Header Content -->
+                  <div class="header-content" style="display: flex; flex: 1; align-items: center; justify-content: space-between;">
+                      <div class="header-user" style="flex: 1; overflow: hidden; display: flex; align-items: center; gap: 10px;">
+                          <button class="mobile-back-btn" onclick="event.stopPropagation(); window.studyBuddySection.toggleSidebar()">
+                            <i class="ri-arrow-left-line"></i>
+                          </button>
+                          <div class="avatar-wrapper">
+                               <i class="ri-robot-2-line" style="font-size: 24px; color: #fff; background: #006064; border-radius: 50%; padding: 8px;"></i>
+                               <div class="status-dot status-online"></div>
+                          </div>
+                          <div style="min-width: 0;">
+                              <h3 class="chat-name" id="buddy-chat-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Study Buddy - CRM</h3>
+                              <div class="chat-time" style="text-align: left; color: #10b981;">Online</div>
+                          </div>
+                      </div>
+
+                      <!-- Header Actions -->
+                      <div class="header-actions">
+                          <button class="action-btn" title="Search" onclick="window.studyBuddySection.toggleSearch()">
+                              <i class="ri-search-line"></i>
+                          </button>
+                          <div style="position: relative;">
+                              <button class="action-btn" title="More Options" onclick="window.studyBuddySection.toggleChatOptions(event)">
+                                  <i class="ri-more-fill"></i>
                               </button>
-                              <div class="avatar-wrapper">
-                                   <i class="ri-robot-2-line" style="font-size: 24px; color: #fff; background: #006064; border-radius: 50%; padding: 8px;"></i>
-                                   <div class="status-dot status-online"></div>
-                              </div>
-                              <div style="min-width: 0;">
-                                  <h3 class="chat-name" id="buddy-chat-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Study Buddy - CRM</h3>
-                                  <div class="chat-time" style="text-align: left; color: #10b981;">Online</div>
+                              <!-- Dropdown Menu -->
+                              <div class="chat-options-dropdown" id="buddy-chat-options-menu">
+                                  <button class="dropdown-item" onclick="window.studyBuddySection.toggleSelectionMode(true)">
+                                      <i class="ri-checkbox-multiple-line"></i> Select Messages
+                                  </button>
+                                  <button class="dropdown-item danger" onclick="window.studyBuddySection.deleteCurrentChat()">
+                                      <i class="ri-delete-bin-line"></i> Delete Chat
+                                  </button>
                               </div>
                           </div>
                       </div>
                   </div>
+              </div>
 
                   <div class="chat-messages" id="study-buddy-messages">
                       <div class="empty-state" style="text-align: center; margin-top: 100px;">
@@ -252,7 +283,8 @@ class StudyBuddySection {
             }
 
             return `
-                <div class="msg-group ${isUser ? 'msg-sent' : 'msg-received'}">
+                <div class="msg-wrapper ${isUser ? 'sent' : 'received'}">
+                    <input type="checkbox" class="msg-select-checkbox" onchange="window.studyBuddySection.updateSelectionCount()">
                     ${!isUser ? `
                     <div class="msg-avatar">
                         <i class="ri-robot-2-line" style="font-size: 20px; color: #006064;"></i>
@@ -407,6 +439,206 @@ class StudyBuddySection {
                 }
             });
         }
+    }
+
+    // Toggle Search Bar
+    toggleSearch() {
+        const searchBar = document.getElementById('buddy-chat-search-bar');
+        if (searchBar) {
+            const isHidden = searchBar.style.display === 'none';
+            searchBar.style.display = isHidden ? 'flex' : 'none';
+            if (isHidden) {
+                const input = searchBar.querySelector('input');
+                if (input) input.focus();
+            } else {
+                // Clear search when closing
+                const input = searchBar.querySelector('input');
+                if (input) {
+                    input.value = '';
+                    this.searchInChat('');
+                }
+            }
+        }
+    }
+
+    // Search in Chat
+    searchInChat(query) {
+        query = query.toLowerCase();
+        const messages = document.querySelectorAll('#study-buddy-messages .message');
+
+        // Remove existing highlights
+        messages.forEach(msg => {
+            const contentDiv = msg.querySelector('.message-content');
+            if (contentDiv) {
+                // Basic implementation: show/hide messages
+                // Ideally this would highlight text, but filtering is a good start
+                // Actually, let's just highlight broadly or scroll to matches.
+                // Replicating student-dashboard.js behavior:
+                // It seems student-dashboard.js filters? Let's check. 
+                // For simplicity and effectiveness, we'll just filter visibility for now
+                // OR better: Highlight and scroll? student-dashboard text says "Search in chat".
+                // Let's implement simple text matching visibility.
+
+                const text = contentDiv.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    msg.style.display = 'flex';
+                } else {
+                    msg.style.display = 'none';
+                }
+            }
+        });
+    }
+
+    // Toggle Chat Options Dropdown
+    toggleChatOptions(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('buddy-chat-options-menu');
+        if (menu) {
+            menu.classList.toggle('show');
+
+            // Close when clicking outside
+            const closeMenu = (e) => {
+                if (!menu.contains(e.target) && e.target !== event.target && !event.target.contains(e.target)) {
+                    menu.classList.remove('show');
+                    document.removeEventListener('click', closeMenu);
+                }
+            };
+
+            if (menu.classList.contains('show')) {
+                document.addEventListener('click', closeMenu);
+            }
+        }
+    }
+
+    // Delete Current Chat
+    async deleteCurrentChat() {
+        // Fallback: Try to get ID from active item in sidebar if not set in class
+        if (!this.currentConversationId) {
+            const activeItem = document.querySelector('#history-list .history-item.active');
+            if (activeItem) {
+                this.currentConversationId = activeItem.dataset.id;
+                console.log('🔄 Recovered ID from DOM:', this.currentConversationId);
+            }
+        }
+
+        console.log('🗑️ deleteCurrentChat called. ID:', this.currentConversationId);
+
+        if (!this.currentConversationId) {
+            console.warn('❌ No currentConversationId set. Aborting delete.');
+            return;
+        }
+
+        window.showDeleteConfirmation(
+            "Are you sure you want to delete this conversation? This cannot be undone.",
+            async () => {
+                try {
+                    const response = await fetch(`/api/messages/conversation/${this.currentConversationId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    console.log('🗑️ Delete response status:', response.status);
+
+                    if (response.ok) {
+                        // Success
+                        this.startNewChat(); // Clear UI
+                        this.loadConversations(); // Reload sidebar list
+                        window.notify?.success('Conversation deleted');
+                    } else {
+                        throw new Error('Failed to delete');
+                    }
+                } catch (error) {
+                    console.error('Delete chat error:', error);
+                    window.notify?.error('Failed to delete conversation');
+                }
+            }
+        );
+    }
+
+    // === SELECTION MODE METHODS ===
+
+    toggleSelectionMode(enable = true) {
+        const header = document.getElementById('buddy-selection-header');
+        const wrappers = document.querySelectorAll('#study-buddy-messages .msg-wrapper');
+        const mainContainer = document.getElementById('study-buddy-container');
+
+        if (enable) {
+            if (header) header.classList.add('active');
+            if (mainContainer) mainContainer.classList.add('selection-active');
+            wrappers.forEach(w => w.classList.add('selection-mode'));
+
+            // Close options menu if open
+            const menu = document.getElementById('buddy-chat-options-menu');
+            if (menu) menu.classList.remove('show');
+
+            // Check body class helper if needed (optional)
+            // document.body.classList.add('selection-active'); 
+        } else {
+            if (header) header.classList.remove('active');
+            if (mainContainer) mainContainer.classList.remove('selection-active');
+            wrappers.forEach(w => w.classList.remove('selection-mode'));
+
+            // Uncheck all
+            const checkboxes = document.querySelectorAll('#study-buddy-messages .msg-select-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            this.updateSelectionCount();
+        }
+    }
+
+    updateSelectionCount() {
+        const count = document.querySelectorAll('#study-buddy-messages .msg-select-checkbox:checked').length;
+        const countEl = document.getElementById('buddy-selection-count');
+        if (countEl) countEl.textContent = `${count} Selected`;
+    }
+
+    copySelectedMessages() {
+        const selected = document.querySelectorAll('#study-buddy-messages .msg-select-checkbox:checked');
+        if (selected.length === 0) return;
+
+        const texts = [];
+        selected.forEach(cb => {
+            const wrapper = cb.closest('.msg-wrapper');
+            const bubble = wrapper.querySelector('.msg-bubble');
+
+            const isSent = wrapper.classList.contains('sent');
+            const label = isSent ? 'You' : 'Study Buddy';
+
+            // Clone to remove time for text copy
+            const clone = bubble.cloneNode(true);
+            const time = clone.querySelector('.msg-time');
+            if (time) time.remove();
+
+            const cleanText = clone.innerText.trim();
+            texts.push(`${label}: ${cleanText} `);
+        });
+
+        const plainText = texts.join('\n\n');
+        navigator.clipboard.writeText(plainText).then(() => {
+            window.notify?.success(`${selected.length} message(s) copied to clipboard!`);
+            this.toggleSelectionMode(false);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            window.notify?.error('Failed to copy messages');
+        });
+    }
+
+    deleteSelectedMessages() {
+        const selected = document.querySelectorAll('#study-buddy-messages .msg-select-checkbox:checked');
+        if (selected.length === 0) return;
+
+        window.showDeleteConfirmation(
+            `Are you sure you want to delete ${selected.length} message(s) ? This will remove them from your view.`,
+            () => {
+                selected.forEach(cb => {
+                    const wrapper = cb.closest('.msg-wrapper');
+                    if (wrapper) wrapper.remove();
+                });
+                this.toggleSelectionMode(false);
+                window.notify?.success('Messages removed from view');
+            }
+        );
     }
 }
 
