@@ -166,4 +166,25 @@ For issues or questions related to this CRM system, please contact:
 
 ## License
 
-ISC
+
+## Latest Updates (v2.0) - Real-time Notifications & Chat UI
+
+### New Features
+- **Real-time Notification Popups**: Instant alerts on Admin and Professor dashboards when students send messages.
+- **Enhanced Chat Interface**: 
+  - Premium "Teal Gradient" bubbles for sent messages.
+  - Improved message bubble styling (border-radius, shadows).
+  - High-contrast text for reply contexts.
+- **Message Interactions**:
+  - **Reply**: Click "Reply" to quote a message.
+  - **Star**: Star important messages.
+  - **React**: Add emoji reactions to messages.
+- **Optimized Performance**:
+  - Global state management for `currentConversationId` to prevent duplicate notifications.
+  - Efficient socket event emission.
+
+### Fixes
+- Fixed "User" name display bug in reply context.
+- Fixed Z-index issue preventing clicks on message actions (Star/Reply).
+- Fixed 500 Error on Conversations API by syncing Sequelize models with Database schema.
+- Added missing database columns: `added_by`, `created_by`, `icon_url`.

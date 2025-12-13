@@ -7,124 +7,81 @@
     <title>Admin Dashboard - Sindhu Software Training</title>
     <link rel="stylesheet" href="/css/styles.css">
     <link rel="stylesheet" href="/css/dashboard.css">
-    <link rel="stylesheet" href="/css/mobile-interface.css">
-    <link rel="stylesheet" href="/css/icon-fixes.css">
-    <link rel="stylesheet" href="/css/conversation-accordion.css">
+    <link rel="stylesheet" href="/css/analytics-dashboard.css">
+    <link rel="stylesheet" href="/css/loading-animations.css">
     <link rel="stylesheet" href="/css/ai-chat.css">
+    <link rel="stylesheet" href="/css/modern-chat.css">
+    <link rel="stylesheet" href="/css/message-popup.css?v=2">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 
 <body>
-    <!-- Mobile Header Bar -->
-    <div class="mobile-header">
-        <button class="mobile-header-btn" onclick="toggleMobileSidebar()" aria-label="Menu">
-            <i class="ri-menu-line"></i>
-        </button>
-        <div class="mobile-header-right">
-            <button class="mobile-header-btn" id="mobile-theme-toggle" aria-label="Toggle Theme">
-                <i class="ri-sun-line theme-icon"></i>
-            </button>
-            <button class="mobile-header-btn" onclick="toggleMobileProfileMenu()" aria-label="Profile">
-                <div class="mobile-avatar" id="mobile-header-avatar">A</div>
-            </button>
-        </div>
-    </div>
 
-    <!-- Mobile Profile Menu (Fullscreen) -->
-    <div class="mobile-profile-menu" id="mobile-profile-menu">
-        <div class="mobile-profile-header">
-            <button class="mobile-back-btn" onclick="toggleMobileProfileMenu()">
-                <i class="ri-arrow-left-line"></i>
-            </button>
-            <h2>Profile</h2>
-        </div>
-        <div class="mobile-profile-content">
-            <div class="mobile-profile-user">
-                <div class="avatar-large" id="mobile-menu-avatar">A</div>
-                <div class="user-details">
-                    <strong id="mobile-menu-user-name">Admin</strong>
-                    <span id="mobile-menu-user-role">Administrator</span>
-                    <span class="user-email" id="mobile-menu-user-email">admin@example.com</span>
-                </div>
-            </div>
-            <div class="mobile-profile-menu-items">
-                <a href="#" class="mobile-profile-item" onclick="openProfileModal(); toggleMobileProfileMenu();">
-                    <i class="ri-user-line"></i>
-                    <span>My Profile</span>
-                    <i class="ri-arrow-right-s-line"></i>
-                </a>
-                <a href="#" class="mobile-profile-item" onclick="openChangePasswordModal(); toggleMobileProfileMenu();">
-                    <i class="ri-lock-password-line"></i>
-                    <span>Change Password</span>
-                    <i class="ri-arrow-right-s-line"></i>
-                </a>
-                <div class="mobile-profile-item non-clickable">
-                    <i class="ri-time-line"></i>
-                    <span>Last Login: <span id="mobile-last-login-time">--</span></span>
-                </div>
-                <a href="#" class="mobile-profile-item danger" onclick="logout()">
-                    <i class="ri-logout-box-line"></i>
-                    <span>Logout</span>
-                    <i class="ri-arrow-right-s-line"></i>
-                </a>
-            </div>
-        </div>
-    </div>
+
+
 
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-header">
-            <img src="/images/logo-light.png" alt="Sindhu Software Solutions" class="sidebar-logo"
-                style="max-width: 200px; margin: 0 auto; display: block;">
-            <p class="user-role" style="margin-top: 1rem;">Administrator</p>
+            <div class="logo-container">
+                <img src="/images/sidebar-logo.png" alt="Logo" class="logo-img logo-collapsed"
+                    style="height: 32px; width: auto;">
+                <img src="/images/sidebar-logo-full.png" alt="Logo" class="logo-img logo-expanded"
+                    style="height: 40px; width: auto; display: none;">
+                <div class="logo-text" style="display: none;">Sindhu</div>
+            </div>
+            <button id="sidebar-toggle" class="btn-icon">
+                <i class="ri-menu-line"></i>
+            </button>
         </div>
 
-        <nav class="sidebar-nav">
+        <nav class="nav-links">
             <a href="#" class="nav-item active" data-section="overview">
                 <i class="ri-dashboard-line"></i>
-                <span>Overview</span>
+                <span class="nav-text">Overview</span>
             </a>
             <a href="#" class="nav-item" data-section="users">
                 <i class="ri-group-line"></i>
-                <span>Users</span>
+                <span class="nav-text">Users</span>
             </a>
             <a href="#" class="nav-item" data-section="courses">
                 <i class="ri-book-open-line"></i>
-                <span>Courses</span>
+                <span class="nav-text">Courses</span>
             </a>
             <a href="#" class="nav-item" data-section="assignments">
                 <i class="ri-clipboard-line"></i>
-                <span>Assignments</span>
+                <span class="nav-text">Assignments</span>
             </a>
             <a href="#" class="nav-item" data-section="sessions">
                 <i class="ri-calendar-event-line"></i>
-                <span>Sessions</span>
+                <span class="nav-text">Sessions</span>
             </a>
             <a href="#" class="nav-item" data-section="attendance">
                 <i class="ri-checkbox-circle-line"></i>
-                <span>Attendance</span>
+                <span class="nav-text">Attendance</span>
             </a>
             <a href="#" class="nav-item" data-section="messages">
                 <i class="ri-message-3-line"></i>
-                <span>Messages</span>
+                <span class="nav-text">Messages</span>
             </a>
             <a href="#" class="nav-item" data-section="study-buddy">
                 <i class="ri-robot-2-line"></i>
-                <span>Study Buddy</span>
+                <span class="nav-text">Study Buddy</span>
             </a>
         </nav>
 
         <div class="sidebar-footer">
-            <button class="btn btn-secondary btn-block" onclick="logout()">Logout</button>
+            <button class="nav-item" onclick="logout()"
+                style="width: 100%; text-align: left; background: none; border: none; font-family: inherit; font-size: inherit; color: inherit; cursor: pointer; display: flex; align-items: center; padding: 12px 15px;">
+                <i class="ri-logout-box-line"></i>
+                <span class="nav-text" style="margin-left: 10px;">Logout</span>
+            </button>
         </div>
     </aside>
 
-    <!-- Mobile Menu Toggle -->
-    <button class="mobile-menu-toggle" onclick="toggleMobileSidebar()">
-        <i class="ri-menu-line"></i>
-    </button>
+
 
     <!-- Floating Actions -->
     <div class="floating-actions">
@@ -165,7 +122,7 @@
 
     <main class="dashboard-content">
         <!-- Section Title -->
-        <h1 id="section-title" style="margin-bottom: 1.5rem; font-size: 1.75rem;">Admin Dashboard</h1>
+        <h1 id="section-title" style=" font-size: 1.75rem;">Admin Dashboard</h1>
 
         <!-- Overview Section -->
         <section id="overview-section" class="content-section active">
@@ -420,7 +377,7 @@
 
     <script src="/js/api.js"></script>
     <script src="../js/auth.js"></script>
-    <script src="/js/admin-dashboard.js?v=2"></script>
+    <script src="/js/study-buddy-section.js?v=2"></script>
     <script src="/js/ai-chat.js"></script>
     <script src="/js/mobile-menu.js"></script>
     <script src="/js/mobile-chat-navigation.js"></script>
@@ -429,10 +386,13 @@
     <script src="/js/resizable-chat.js"></script>
     <script src="/js/notifications.js"></script>
     <script src="/js/ai-study-buddy-button.js"></script>
-    <script src="/js/study-buddy-section.js?v=2"></script>
     <script src="/js/conversation-accordion.js"></script>
     <script src="/js/delete-functions.js"></script>
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/activity-heartbeat.js"></script>
+    <script src="/js/admin-dashboard.js?v=2"></script>
+    <script src="/js/message-notification.js"></script>
 </body>
 
 </html>
-```

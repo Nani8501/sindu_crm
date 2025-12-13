@@ -40,6 +40,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize theme from localStorage
     initTheme();
 
+    // Sidebar Toggle Logic
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    const body = document.body;
+
+    window.toggleGlobalSidebar = function () {
+      if (sidebar) {
+        sidebar.classList.toggle('expanded');
+        body.classList.toggle('sidebar-expanded');
+      }
+    }
+
+    if (sidebarToggle) {
+      sidebarToggle.addEventListener('click', window.toggleGlobalSidebar);
+    }
+
+    // Theme Toggle Logic
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+      themeToggle.addEventListener('click', window.toggleTheme);
+    }
+
+
     // Set up navigation
     setupNavigation();
 
@@ -71,7 +94,10 @@ function setupNavigation() {
 
       // Update active section
       sections.forEach(section => section.classList.remove('active'));
-      document.getElementById(`${sectionName}-section`).classList.add('active');
+      const targetSection = document.getElementById(`${sectionName}-section`);
+      if (targetSection) {
+        targetSection.classList.add('active');
+      }
 
       // Special handling for Study Buddy section
       if (sectionName === 'study-buddy') {
@@ -88,6 +114,14 @@ function setupNavigation() {
 
       // Load section data
       loadSectionData(sectionName);
+
+      // On mobile/tablet, collapse sidebar after selection
+      if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector('.sidebar');
+        const body = document.body;
+        if (sidebar) sidebar.classList.remove('expanded');
+        if (body) body.classList.remove('sidebar-expanded');
+      }
     });
   });
 }
@@ -1037,83 +1071,23 @@ window.openCreateGroupModal = async function () {
   }
 }
 
+
+
 // Theme Management
 function initTheme() {
-  const savedTheme = localStorage.getItem('theme') || 'dark';
-  if (savedTheme === 'light') {
-    document.body.classList.add('light-mode');
-  } else {
-    document.body.classList.remove('light-mode');
-  }
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeIcon(savedTheme);
 }
 
-// Toggle theme
-function toggleTheme(event) {
-  try {
-    const body = document.body;
-    const isLight = body.classList.contains('light-mode');
+window.toggleTheme = function () {
+  const currentTheme = localStorage.getItem('theme') || 'light';
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
 
-    // Get toggle button position
-    const toggleBtn = document.getElementById('theme-toggle');
-    let centerX = window.innerWidth / 2;
-    let centerY = window.innerHeight / 2;
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
 
-    if (toggleBtn) {
-      const rect = toggleBtn.getBoundingClientRect();
-      centerX = rect.left + rect.width / 2;
-      centerY = rect.top + rect.height / 2;
-    }
-
-    // Create wave animation - REVERSED COLORS: white for dark mode, black for light mode
-    const wave = document.createElement('div');
-    wave.className = 'theme-wave';
-    wave.style.cssText = `
-    position: fixed;
-    top: ${centerY}px;
-    left: ${centerX}px;
-    width: 0;
-    height: 0;
-    border-radius: 50%;
-    background: ${isLight ? '#ffffff' : '#000000'};
-    transform: translate(-50%, -50%);
-    z-index: 99999;
-    pointer-events: none;
-    opacity: 0.9;
-    `;
-    document.body.appendChild(wave);
-
-    // Animate wave expanding from toggle button
-    wave.animate([
-      { width: '0px', height: '0px', opacity: 0.9 },
-      { width: '3000px', height: '3000px', opacity: 0 }
-    ], {
-      duration: 800,
-      easing: 'ease-out'
-    }).onfinish = () => wave.remove();
-
-    // Toggle theme
-    body.classList.toggle('light-mode');
-
-    // Update icon
-    const icon = document.querySelector('.theme-icon');
-    if (icon) {
-      if (body.classList.contains('light-mode')) {
-        icon.classList.remove('ri-moon-line');
-        icon.classList.add('ri-sun-line');
-      } else {
-        icon.classList.remove('ri-sun-line');
-        icon.classList.add('ri-moon-line');
-      }
-    }
-
-    // Save to localStorage
-    const theme = body.classList.contains('light-mode') ? 'light' : 'dark';
-    localStorage.setItem('theme', theme);
-    console.log('Theme saved to localStorage:', theme);
-  } catch (error) {
-    console.error('Error toggling theme:', error);
-  }
+  updateThemeIcon(newTheme);
 }
 
 function updateThemeIcon(theme) {
@@ -1431,6 +1405,235 @@ window.saveProfile = async function (event) {
   }
 }
 
+// --- Modern Chat Implementation ---
+
+// Render messages (Chat Interface)
+async function renderMessages() {
+  const messagesEl = document.getElementById('messages-list');
+  if (!messagesEl) return;
+
+  // Create chat layout - matching student/professor dashboard structure
+  // Create chat layout
+  messagesEl.innerHTML = `
+      <div class="chat-container-modern">
+          <!-- Sidebar -->
+          <div class="chat-sidebar">
+              <div class="chat-sidebar-header">
+              <div style="margin-bottom: 20px; padding: 0 10px; display: flex; align-items: center; gap: 12px;">
+                  <button class="mobile-menu-btn btn-icon" onclick="toggleGlobalSidebar()" style="font-size: 1.5rem; color: var(--text-primary);">
+                      <i class="ri-menu-line"></i>
+                  </button>
+                  <img src="/images/sindhu-logo.png" alt="Sindhu Software" style="height: 32px; width: auto; display: block;">
+              </div>
+              <div class="search-box">
+                  <i class="ri-search-line" style="color: var(--chat-text-muted);"></i>
+                  <input type="text" placeholder="Search chats..." id="chat-search">
+              </div>
+          </div>
+              <div class="chat-list" id="conversation-list">
+                  <div style="padding: 20px; text-align: center; color: var(--text-muted);">Loading...</div>
+              </div>
+              
+              <!-- Fixed Sidebar Footer -->
+              <div class="chat-sidebar-footer" style="padding: 16px; border-top: 1px solid var(--chat-border);">
+                  <button class="btn-new-chat" onclick="startNewConversation()">
+                      <i class="ri-add-line"></i> Create New
+                  </button>
+                  <button class="btn-new-chat" onclick="openCreateGroupModal()" style="background: var(--bg-secondary); color: var(--text-primary); margin-top: 10px;">
+                      <i class="ri-group-line"></i> Create Group
+                  </button>
+              </div>
+          </div>
+
+
+          <!-- Main Chat -->
+          <div class="chat-main" id="chat-window">
+              <div class="chat-header" id="chat-header" style="visibility: hidden; position: relative;">
+                  
+                  <!-- Normal Header Content -->
+                  <div class="header-content" style="display: flex; flex: 1; align-items: center;">
+                      <div class="header-user" onclick="toggleDetails()" style="flex: 1; overflow: hidden; display: flex; align-items: center; gap: 10px;">
+                          <button class="mobile-back-btn" onclick="event.stopPropagation(); document.querySelector('.chat-container-modern').classList.remove('mobile-chat-active')">
+                            <i class="ri-arrow-left-line"></i>
+                          </button>
+                          <div class="avatar-wrapper">
+                               <img src="/images/avatar-placeholder.png" alt="User" class="avatar-img" id="chat-header-avatar">
+                               <div class="status-dot status-online" id="chat-header-status-dot"></div>
+                          </div>
+                          <div style="min-width: 0;">
+                              <h3 class="chat-name" id="chat-header-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Select a conversation</h3>
+                              <div class="chat-time" id="chat-header-status" style="text-align: left; color: #10b981;">Online</div>
+                          </div>
+                      </div>
+                      
+                      <!-- Search Bar (Hidden by default) -->
+                      <div class="chat-header-search" id="chat-search-bar">
+                          <i class="ri-search-line"></i>
+                          <input type="text" placeholder="Search in chat..." onkeyup="searchInChat(this.value)">
+                          <i class="ri-close-circle-fill" onclick="toggleSearch()" style="left: auto; right: 12px; cursor: pointer; color: #9ca3af;"></i>
+                      </div>
+
+                      <div class="header-actions">
+                          <button class="action-btn" title="Search" onclick="toggleSearch()">
+                              <i class="ri-search-line"></i>
+                          </button>
+                          <div style="position: relative;">
+                              <button class="action-btn" title="More Options" onclick="toggleChatOptions(event)">
+                                  <i class="ri-more-fill"></i>
+                              </button>
+                              <!-- Dropdown Menu -->
+                              <div class="chat-options-dropdown" id="chat-options-menu">
+                                  <button class="dropdown-item" onclick="toggleSelectionMode(true)">
+                                      <i class="ri-checkbox-multiple-line"></i> Select Messages
+                                  </button>
+                                  <button class="dropdown-item danger" onclick="deleteChatConversation(currentConversationId, document.getElementById('chat-header-name').innerText)">
+                                      <i class="ri-delete-bin-line"></i> Delete Chat
+                                  </button>
+                              </div>
+                          </div>
+                          <button class="action-btn" onclick="toggleDetails()" title="Info">
+                              <i class="ri-information-line"></i>
+                          </button>
+                      </div>
+                  </div>
+
+                  <!-- Selection Mode Header (Overlay) -->
+                  <div class="selection-header" id="selection-header">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                          <button class="btn-icon" onclick="toggleSelectionMode(false)">
+                              <i class="ri-close-line"></i>
+                          </button>
+                          <span id="selection-count" style="font-weight: 600;">0 Selected</span>
+                      </div>
+                      <div style="display: flex; gap: 10px;">
+                          <button class="btn-icon" onclick="copySelectedMessages()" title="Copy Text">
+                              <i class="ri-file-copy-line"></i>
+                          </button>
+                          <button class="btn-icon" onclick="deleteSelectedMessages()" style="color: #ef4444;" title="Delete">
+                              <i class="ri-delete-bin-line"></i>
+                          </button>
+                      </div>
+                  </div>
+
+              </div>
+
+              <div class="chat-messages" id="messages-container">
+                  <div class="empty-state" style="text-align: center; margin-top: 100px;">
+                      <i class="ri-chat-smile-2-line" style="font-size: 4rem; color: #d1fae5;"></i>
+                      <h3 style="color: var(--chat-text); margin-top: 20px;">Select a conversation</h3>
+                      <p style="color: var(--chat-text-muted);">Choose a user or group to start chatting</p>
+                  </div>
+              </div>
+
+              <!-- Chat Footer (Input) -->
+              <div class="chat-footer" id="chat-footer" style="display: none;">
+                  <button class="btn-icon" onclick="document.getElementById('file-input').click()">
+                      <i class="ri-attachment-2"></i>
+                  </button>
+                  <input type="file" id="file-input" style="display: none;" onchange="handleFileUpload(this)">
+                  
+                  <div class="input-wrapper">
+                      <input type="text" placeholder="Type a message..." id="messageInput" onkeypress="if(event.key === 'Enter') sendMessage(currentConversationId)">
+                      <button class="btn-emoji">
+                          <i class="ri-emotion-line"></i>
+                      </button>
+                  </div>
+                  
+                  <button class="btn-send" onclick="sendMessage(currentConversationId)">
+                      <i class="ri-send-plane-fill"></i>
+                  </button>
+              </div>
+          </div>
+
+          <!-- Details Pane -->
+          <div class="chat-details" id="chat-details-pane">
+              <div class="details-content">
+                  <div class="details-header">
+                      <div class="action-btn" onclick="toggleDetails()" style="cursor: pointer;"><i class="ri-close-line"></i></div>
+                  </div>
+                  
+                  <!-- Profile Info -->
+                  <div class="profile-section">
+                      <img src="/images/avatar-placeholder.png" id="details-avatar" class="profile-large-img">
+                      <h3 class="profile-name-lg" id="details-name">User Name</h3>
+                      <span class="profile-status-lg" id="details-status">Online</span>
+                  </div>
+
+                  <!-- About -->
+                  <div class="detail-block">
+                      <h4 class="detail-block-title">About</h4>
+                      <div class="info-row">
+                          <p style="font-size: 0.9rem; line-height: 1.5; color: var(--chat-text-muted);" id="details-bio">
+                              N/A
+                          </p>
+                      </div>
+                      <div class="info-row">
+                          <i class="ri-phone-line"></i>
+                          <span id="details-phone">N/A</span>
+                      </div>
+                      <div class="info-row">
+                          <i class="ri-mail-line"></i>
+                          <span id="details-email">N/A</span>
+                      </div>
+                  </div>
+
+                  <!-- Settings -->
+                  <div class="detail-block">
+                      <h4 class="detail-block-title">Settings</h4>
+                      <div class="setting-row">
+                          <div class="setting-label"><i class="ri-notification-3-line"></i> Notification</div>
+                          <div class="toggle-switch-ios active"></div>
+                      </div>
+                      <div class="setting-row">
+                          <div class="setting-label"><i class="ri-star-line"></i> Starred Messages</div>
+                          <i class="ri-arrow-right-s-line" style="color: var(--chat-text-muted);"></i>
+                      </div>
+                  </div>
+                  
+                  <!-- Media -->
+                  <div class="detail-block">
+                      <div class="setting-row">
+                          <h4 class="detail-block-title" style="margin:0;">Media and Files</h4>
+                          <i class="ri-arrow-right-s-line" style="color: var(--chat-text-muted);"></i>
+                      </div>
+                      <div class="media-grid">
+                          <div class="media-thumb"></div>
+                          <div class="media-thumb"></div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  `;
+
+  // Start checking for conversations
+  await loadConversations();
+}
+
+// Toggle Details Pane
+window.toggleDetails = function () {
+  const pane = document.getElementById('chat-details-pane');
+  if (pane) {
+    pane.classList.toggle('open');
+  }
+}
+
+// Update Details Content
+function updateDetailsPane(name, id, userDetails = {}) {
+  const nameEl = document.getElementById('details-name');
+  const avatarEl = document.getElementById('details-avatar');
+  const bioEl = document.getElementById('details-bio');
+  const phoneEl = document.getElementById('details-phone');
+  const emailEl = document.getElementById('details-email');
+
+  if (nameEl) nameEl.textContent = name;
+  if (avatarEl) avatarEl.src = userDetails.avatar || '/images/avatar-placeholder.png';
+  if (bioEl) bioEl.textContent = userDetails.bio || "N/A";
+  if (phoneEl) phoneEl.textContent = userDetails.phone || "N/A";
+  if (emailEl) emailEl.textContent = userDetails.email || "N/A";
+}
+
+
 // Load conversations
 async function loadConversations() {
   try {
@@ -1439,539 +1642,546 @@ async function loadConversations() {
     });
     const data = await response.json();
 
-    const listEl = document.getElementById('conversation-list');
-    if (!listEl) return;
+    if (data.success) {
+      const conversationList = document.getElementById('conversation-list');
+      if (!conversationList) return;
 
-    // Buttons container positioned absolute at bottom
-    const buttonsHtml = `
-      <div style="position: absolute; bottom: 20px; left: 20px; right: 20px; display: flex; gap: 10px; z-index: 10;  padding-top: 10px;">
-        <button class="btn btn-primary" onclick="startNewConversation()" style="flex: 1; display: flex; align-items: center; justify-content: center;">New Chat</button>
-        <button class="btn btn-secondary" onclick="openCreateGroupModal()" style="flex: 1; display: flex; align-items: center; justify-content: center;">Create Group</button>
-      </div>
-      `;
+      // Filter out AI assistant conversations
+      const filteredConversations = data.conversations.filter(conv => {
+        let otherId = null;
+        if (conv.user) {
+          otherId = conv.user.id;
+        } else if (conv.participants) {
+          const other = currentUser ? conv.participants.find(p => p.id !== currentUser.id) : null;
+          if (other) otherId = other.id;
+        }
+        // Check for both potential IDs used for AI
+        return otherId !== 'ai-assistant' && otherId !== 'ai-user';
+      });
 
-    // Ensure list parent handles layout for floating buttons
-    listEl.style.position = 'relative';
-    listEl.style.overflow = 'hidden';
-    listEl.style.display = 'flex';
-    listEl.style.flexDirection = 'column';
-
-    if (!data.conversations || data.conversations.length === 0) {
-      listEl.innerHTML = `
-      <div class="conversations-scroll" style="flex: 1; overflow-y: auto; padding-bottom: 80px;">
-        <div class="empty-state" style="height: 200px;">
-          <p>No conversations yet</p>
-        </div>
-      </div>
-      ${buttonsHtml}
-    `;
-      return;
-    }
-
-    // Helper function to categorize conversations by time
-    const getTimeCategory = (date) => {
-      const now = new Date();
-      const msgDate = new Date(date);
-      const diffTime = now - msgDate;
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-      // Today
-      if (now.toDateString() === msgDate.toDateString()) {
-        return 'Today';
+      if (filteredConversations.length === 0) {
+        conversationList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No conversations yet</div>';
+        return;
       }
 
-      // Yesterday
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      if (yesterday.toDateString() === msgDate.toDateString()) {
-        return 'Yesterday';
-      }
+      conversationList.innerHTML = filteredConversations.map(conv => {
+        let otherParticipant = null;
+        let name = 'Unknown User';
+        let avatar = '/images/avatar-placeholder.png';
 
-      // This week (last 7 days including today)
-      if (diffDays < 7) {
-        return 'This Week';
-      }
+        if (conv.type === 'group') {
+          name = conv.name;
+          avatar = conv.avatar || '/images/group-placeholder.png';
+        } else {
+          if (conv.user) {
+            otherParticipant = conv.user;
+            name = conv.user.name;
+            if (conv.user.avatar) avatar = conv.user.avatar;
+          } else if (conv.participants && conv.participants.length > 0) {
+            otherParticipant = conv.participants.find(p => p.id !== currentUser.id);
+            name = otherParticipant ? otherParticipant.name : 'Unknown User';
+            if (otherParticipant && otherParticipant.avatar) avatar = otherParticipant.avatar;
+          }
+        }
 
-      // Last week (7-14 days ago)
-      if (diffDays < 14) {
-        return 'Last Week';
-      }
+        const lastMessage = conv.lastMessage ? (conv.lastMessage.content.length > 30 ? conv.lastMessage.content.substring(0, 30) + '...' : conv.lastMessage.content) : 'No messages yet';
+        const time = conv.lastMessage ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        const unreadCount = conv.unreadCount || 0;
 
-      // Last month (14-30 days ago)
-      if (diffDays < 30) {
-        return 'Last Month';
-      }
-
-      // Last 6 months (30-180 days ago)
-      if (diffDays < 180) {
-        return 'Last 6 Months';
-      }
-
-      // Older
-      return 'Older';
-    };
-
-    // Group conversations by time category
-    const groupedConversations = {
-      'Today': [],
-      'Yesterday': [],
-      'This Week': [],
-      'Last Week': [],
-      'Last Month': [],
-      'Last 6 Months': [],
-      'Older': []
-    };
-
-    data.conversations.forEach(conv => {
-      const category = getTimeCategory(conv.lastMessage.createdAt);
-      groupedConversations[category].push(conv);
-    });
-
-    // Generate accordion HTML
-    let accordionHtml = '';
-    Object.entries(groupedConversations).forEach(([category, convs]) => {
-      if (convs.length === 0) return; // Skip empty categories
-
-      const categoryId = category.toLowerCase().replace(/\s+/g, '-');
-      const conversationsHtml = convs.map(conv => {
-        const user = conv.user || { name: 'Unknown User' };
-        const lastMsg = conv.lastMessage;
-        const isUnread = conv.unreadCount > 0;
-        const time = new Date(lastMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const loadId = conv.conversationId;
+        // Get activity status for online indicator
+        const activityStatus = conv.activityStatus || 'Never seen';
+        const isOnline = activityStatus === 'Online';
 
         return `
-        <div class="conversation-item ${isUnread ? 'unread' : ''}" data-conversation-id="${loadId}" data-conversation-name="${user.name}" id="conv-${loadId}">
-            <div class="conversation-avatar">${user.name.charAt(0)}</div>
-            <div class="conversation-info">
-              <div class="conversation-header">
-                <div class="conversation-name">${user.name}</div>
-                <div class="conversation-time">${time}</div>
+            <div class="chat-item ${unreadCount > 0 ? 'unread' : ''}" data-conversation-id="${conv.conversationId || conv.id}" data-conversation-name="${name}" data-activity-status="${activityStatus}">
+               <div class="avatar-wrapper">
+                 <img src="${avatar}" class="avatar-img" alt="${name}">
+                 ${isOnline ? `<div class="status-dot status-online" style="border-color: #fff;"></div>` : ''}
               </div>
-              <div class="conversation-preview">
-                ${lastMsg.senderId === currentUser.id ? 'You: ' : ''}${lastMsg.content}
+              <div class="chat-info">
+                <div class="chat-name-row">
+                  <span class="chat-name">${name}</span>
+                  <span class="chat-time">${time}</span>
+                </div>
+                <div class="chat-name-row">
+                   <div class="chat-preview">${lastMessage}</div>
+                   ${unreadCount > 0 ? `<div class="unread-badge">${unreadCount}</div>` : ''}
+                </div>
               </div>
             </div>
-            ${isUnread ? `<div class="unread-badge">${conv.unreadCount}</div>` : ''}
-          </div>
-        `;
+          `;
       }).join('');
 
-      accordionHtml += `
-        <div class="conversation-accordion">
-          <div class="accordion-header" onclick="toggleConversationAccordion('${categoryId}')">
-            <span class="accordion-title">${category} (${convs.length})</span>
-            <i class="ri-arrow-down-s-line accordion-icon" id="icon-${categoryId}"></i>
-          </div>
-          <div class="accordion-content active" id="accordion-${categoryId}">
-            ${conversationsHtml}
-          </div>
-        </div>
-      `;
-    });
+      // Add click listeners to conversation items
+      document.querySelectorAll('.chat-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const convId = item.dataset.conversationId;
+          const name = item.dataset.conversationName;
+          const activityStatus = item.dataset.activityStatus || 'Never seen';
 
-    listEl.innerHTML = `
-      <div class="conversations-scroll" style="flex: 1; overflow-y: auto; padding-bottom: 80px;">
-        ${accordionHtml}
-      </div>
-      ${buttonsHtml}
-    `;
+          // Mobile check
+          const chatContainer = document.querySelector('.chat-container-modern');
+          if (chatContainer && window.innerWidth <= 768) {
+            chatContainer.classList.add('mobile-chat-active');
+          }
 
+          loadChatHistory(convId, name, activityStatus);
+        });
+      });
+    }
   } catch (error) {
     console.error('Error loading conversations:', error);
-    const listEl = document.getElementById('conversation-list');
-    if (listEl) {
-      listEl.innerHTML = `
-      <div style="padding: 20px; text-align: center; color: red;">
-          <p>Error loading messages.</p>
-          <button class="btn btn-sm btn-outline-secondary" onclick="loadConversations()">Retry</button>
-        </div>
-      `;
-    }
   }
 }
 
 // Load chat history
-window.loadChatHistory = async function (id, name, isNewGroup = false) {
+// Load chat history
+async function loadChatHistory(conversationId, conversationName, activityStatus = 'Never seen') {
+  window.currentConversationId = conversationId;
   const chatWindow = document.getElementById('chat-window');
-  if (!chatWindow) return;
 
-  console.log('Loading chat history for:', id, name);
+  // Update active state in sidebar
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('active');
+    if (item.dataset.conversationId == conversationId) item.classList.add('active');
+  });
 
-  // Highlight active conversation
-  document.querySelectorAll('.conversation-item').forEach(item => item.classList.remove('active'));
-  const activeItem = document.getElementById(`conv-${id}`);
-  if (activeItem) activeItem.classList.add('active');
+  // Determine status color based on activity
+  const isOnline = activityStatus === 'Online';
+  const statusColor = isOnline ? '#10b981' : '#9ca3af';
 
-  // Mobile: Show chat window, hide conversation list
-  if (window.innerWidth <= 768) {
-    const conversationList = document.querySelector('.conversation-list');
-    if (conversationList) {
-      conversationList.style.display = 'none';
+  // 1. Update Header
+  const chatHeader = document.getElementById('chat-header');
+  if (chatHeader) {
+    chatHeader.style.visibility = 'visible';
+    const nameEl = document.getElementById('chat-header-name');
+    const avatarEl = document.getElementById('chat-header-avatar');
+    const statusEl = document.getElementById('chat-header-status');
+    const statusDotEl = document.getElementById('chat-header-status-dot');
+
+    if (nameEl) nameEl.textContent = conversationName;
+    // Attempt to find conversation to get avatar? 
+    // For now, placeholder or keep existing if not changed
+    if (avatarEl) avatarEl.src = '/images/avatar-placeholder.png'; // Default
+
+    // Update status text and color dynamically
+    if (statusEl) {
+      statusEl.textContent = activityStatus;
+      statusEl.style.color = statusColor;
     }
-    chatWindow.style.display = 'flex';
+
+    // Update status dot visibility
+    if (statusDotEl) {
+      if (isOnline) {
+        statusDotEl.classList.add('status-online');
+        statusDotEl.style.display = 'block';
+      } else {
+        statusDotEl.classList.remove('status-online');
+        statusDotEl.style.display = 'none';
+      }
+    }
+
+    // Ensure dropdown delete action uses correct ID
+    const deleteBtn = document.querySelector('#chat-options-menu .dropdown-item.danger');
+    if (deleteBtn) {
+      deleteBtn.setAttribute('onclick', `deleteChatConversation('${conversationId}', '${conversationName}')`);
+    }
   }
 
-  chatWindow.innerHTML = `
-      <div class="chat-header" style="display: flex; justify-content: space-between; align-items: center; padding: var(--spacing-md); border-bottom: 1px solid var(--border-color);">
-      <button class="mobile-back-to-list" onclick="showConversationList()" style="display: none; background: transparent; border: none; color: var(--text-primary); font-size: 1.5rem; margin-right: 10px; cursor: pointer; padding: 5px;">
-        <i class="ri-arrow-left-line"></i>
-      </button>
-      <div class="chat-user-info" style="display: flex; align-items: center; gap: 12px;">
-        <div class="conversation-avatar">${name.charAt(0)}</div>
-        <h3 style="margin: 0;">${name}</h3>
-      </div>
-      <div class="chat-actions" style="position: relative;">
-        <button onclick="toggleChatMenu('${id}', '${name}')" id="chat-menu-btn-${id}" style="width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.2s;" onmouseover="this.style.background='rgba(255, 255, 255, 0.15)'" onmouseout="this.style.background='rgba(255, 255, 255, 0.1)'">
-          ⋮
-        </button>
-        <div id="chat-menu-${id}" class="chat-dropdown-menu" style="display: none; position: absolute; right: 0; top: 45px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; min-width: 180px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000;">
-          <div onclick="handleChatAction('select-delete', '${id}', '${name}')" style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border-color); transition: background 0.2s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
-            <span style="color: var(--text-primary);">Delete Selected</span>
-          </div>
-          <div onclick="handleChatAction('delete-chat', '${id}', '${name}')" style="padding: 12px 16px; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='transparent'">
-            <span style="color: #ef4444;">Delete Entire Chat</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="chat-messages" id="chat-messages">
-      <div style="text-align: center; padding: 20px;">Loading messages...</div>
-    </div>
-    <div class="chat-input-area">
-      <form onsubmit="sendMessage(event, '${id}')" enctype="multipart/form-data" style="display: flex; width: 100%; gap: 10px; align-items: center;">
-        <label for="file-input-${id}" class="btn btn-icon" style="cursor: pointer; padding: 8px; border-radius: 50%; background: var(--bg-tertiary); color: var(--text-primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; transition: background 0.2s;">
-          <span style="font-size: 1.2rem;">📎</span>
-        </label>
-        <input type="file" id="file-input-${id}" name="attachment" style="display: none;" onchange="updateFileLabel(this, '${id}')">
-        <input type="text" id="message-input-${id}" class="chat-input" placeholder="Type a message..." autocomplete="off">
-        <button type="submit" class="send-btn" style="cursor: pointer; padding: 8px; border-radius: 50%; background: var(--bg-tertiary); color: var(--text-primary); display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; transition: background 0.2s; border: 1px solid var(--border-color); font-size: 1.2rem;">➤</button>
-      </form>
-    </div>
-    <div id="file-name-display-${id}" style="font-size: 0.8rem; color: var(--text-muted); padding: 0 var(--spacing-md) var(--spacing-sm) var(--spacing-md); margin-top: -10px;"></div>
-  `;
-
-  // Store current conversation ID for sending messages
-  chatWindow.setAttribute('data-current-conversation', id);
+  // 2. Load Messages
+  const messagesContainer = document.getElementById('messages-container');
+  if (messagesContainer) {
+    messagesContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</div>';
+  }
 
   try {
-    const response = await fetch(`/api/messages/conversation/${id}`, {
+    const response = await fetch(`/api/messages/conversation/${conversationId}`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
     const data = await response.json();
 
-    console.log('Chat history response:', data);
-
-    if (data.success) {
-      const messagesContainer = document.getElementById('chat-messages');
-      if (!messagesContainer) return;
-
+    if (data.success && messagesContainer) {
+      messagesContainer.innerHTML = '';
       if (data.messages.length === 0) {
-        messagesContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">No messages yet. Start the conversation!</div>';
+        messagesContainer.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.7;">No messages yet.</div>';
       } else {
-        messagesContainer.innerHTML = data.messages.map(msg => {
-          const isSent = msg.senderId === currentUser.id;
-          const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        data.messages.forEach(msg => {
+          const isMe = msg.sender && (msg.sender.id === currentUser.id || msg.senderId === currentUser.id);
 
-          let attachmentHtml = '';
-          if (msg.attachmentUrl) {
-            if (msg.attachmentType === 'image') {
-              attachmentHtml = `<div class="message-attachment"><img src="${msg.attachmentUrl}" alt="Attachment" style="max-width: 200px; max-height: 200px; border-radius: 4px; margin-top: 5px; cursor: pointer;" onclick="window.open('${msg.attachmentUrl}', '_blank')"></div>`;
-            } else {
-              attachmentHtml = `<div class="message-attachment"><a href="${msg.attachmentUrl}" target="_blank" class="btn btn-sm btn-outline-primary" style="margin-top: 5px;">📄 Download Document</a></div>`;
-            }
+          // Reply context
+          let replyContext = '';
+          if (msg.replyTo) {
+            const replyText = msg.replyTo.content.substring(0, 50) + (msg.replyTo.content.length > 50 ? '...' : '');
+            replyContext = `
+                        <div class="reply-context">
+                            <i class="ri-reply-line"></i>
+                            <span class="reply-sender">${msg.replyTo.sender?.name || 'User'}</span>
+                            <span class="reply-text">${replyText}</span>
+                        </div>
+                    `;
           }
 
-          return `
-            <div class="message-bubble ${isSent ? 'message-sent' : 'message-received'}">
-              ${!isSent && data.conversationId ? `<div class="message-sender" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">${msg.sender.name}</div>` : ''}
-              <div class="message-content">${msg.content}</div>
-              ${attachmentHtml}
-              <div class="message-time">${time}</div>
-            </div>
-          `;
-        }).join('');
+          messagesContainer.innerHTML += `
+                  <div class="msg-wrapper ${isMe ? 'sent' : 'received'}" data-msg-id="${msg.id}">
+                    <input type="checkbox" class="msg-select-checkbox" onchange="updateSelectionCount()">
+                    ${!isMe ? `<img src="${(msg.sender && msg.sender.avatar) ? msg.sender.avatar : '/images/avatar-placeholder.png'}" class="msg-avatar">` : ''}
+                    <div class="msg-bubble">
+                        ${msg.isStarred ? '<i class="ri-star-fill starred-indicator"></i>' : ''}
+                        ${replyContext}
+                        ${msg.content}
+                        <span class="msg-time">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <div class="msg-actions">
+                             <button class="msg-action-btn" onclick="toggleStar(${msg.id}, this)" title="Star">
+                                <i class="${msg.isStarred ? 'ri-star-fill' : 'ri-star-line'}"></i>
+                            </button>
+                            <button class="msg-action-btn" onclick="toggleEmojiPicker(${msg.id}, this)" title="React">
+                                <i class="ri-emotion-line"></i>
+                            </button>
+                             <button class="msg-action-btn" onclick="setReplyTo(${msg.id}, '${(msg.sender?.name || 'User').replace(/'/g, "\\'")}', '${msg.content.replace(/'/g, "\\'")}')" title="Reply">
+                                <i class="ri-reply-line"></i>
+                            </button>
+                        </div>
+                    </div>
+                  </div>
+               `;
+        });
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
-
-      // Scroll to bottom
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-      // Removed loadConversations() call here as it causes sidebar to flicker/disappear
-      // The unread badges will be cleared on next conversation list refresh
     }
-  } catch (error) {
-    console.error('Error loading chat history:', error);
-    const messagesContainer = document.getElementById('chat-messages');
-    if (messagesContainer) {
-      messagesContainer.innerHTML = '<div style="text-align: center; color: red; padding: 20px;">Error loading messages.</div>';
-    }
+  } catch (e) {
+    console.error(e);
+    if (messagesContainer) messagesContainer.innerHTML = 'Error loading messages';
   }
-}
 
-// Toggle chat menu dropdown
-window.toggleChatMenu = function (conversationId, name) {
-  const menuId = `chat-menu-${conversationId}`;
-  const menu = document.getElementById(menuId);
-
-  // Close all other menus first
-  document.querySelectorAll('.chat-dropdown-menu').forEach(m => {
-    if (m.id !== menuId) m.style.display = 'none';
+  // 3. Update Details Pane
+  // We can fetch user details if conv is direct, or just use convName
+  // For now, simple update
+  updateDetailsPane(conversationName, conversationId, {
+    avatar: '/images/avatar-placeholder.png',
+    bio: 'User details...',
+    phone: 'N/A',
+    email: 'N/A'
   });
 
-  // Toggle this menu
-  if (menu) {
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-  }
+  // 4. Show Footer
+  const footer = document.getElementById('chat-footer');
+  if (footer) footer.style.display = 'flex';
 }
 
-// Close dropdown when clicking outside
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.chat-actions')) {
-    document.querySelectorAll('.chat-dropdown-menu').forEach(m => m.style.display = 'none');
-  }
-});
-
-// Handle chat actions (delete options)
-window.handleChatAction = function (action, conversationId, name) {
-  // Close the dropdown menu
-  const menuId = `chat-menu-${conversationId}`;
-  const menu = document.getElementById(menuId);
-  if (menu) menu.style.display = 'none';
-
-  if (action === 'select-delete') {
-    enableDeleteMode(conversationId);
-  } else if (action === 'delete-chat') {
-    if (confirm(`Are you sure you want to delete the entire conversation with ${name}?\n\nThis action cannot be undone.`)) {
-      deleteChatConversation(conversationId, name);
-    }
-  }
-}
-
-// Enable delete mode for selecting messages
-function enableDeleteMode(conversationId) {
-  const messagesContainer = document.getElementById('chat-messages');
-  if (!messagesContainer) return;
-
-  // Check if already in delete mode
-  if (messagesContainer.classList.contains('delete-mode')) {
-    // Exit delete mode
-    exitDeleteMode();
-    return;
-  }
-
-  // Enter delete mode
-  messagesContainer.classList.add('delete-mode');
-
-  // Add checkboxes to all messages
-  const messageBubbles = messagesContainer.querySelectorAll('.message-bubble');
-  messageBubbles.forEach((bubble, index) => {
-    bubble.style.position = 'relative';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'message-delete-checkbox';
-    checkbox.setAttribute('data-message-index', index);
-    checkbox.style.cssText = 'position: absolute; left: -30px; top: 10px; width: 20px; height: 20px; cursor: pointer;';
-    bubble.style.marginLeft = '40px';
-    bubble.insertBefore(checkbox, bubble.firstChild);
-  });
-
-  // Add action buttons at bottom
-  const chatInputArea = document.querySelector('.chat-input-area');
-  if (chatInputArea) {
-    const actionBar = document.createElement('div');
-    actionBar.id = 'delete-action-bar';
-    actionBar.style.cssText = 'display: flex; gap: 10px; padding: 10px; background: var(--bg-secondary); border-top: 1px solid var(--border-color);';
-    actionBar.innerHTML = `
-      <button onclick="deleteSelectedMessages('${conversationId}')" class="btn btn-danger" style="flex: 1;">Delete Selected</button>
-      <button onclick="exitDeleteMode()" class="btn btn-secondary" style="flex: 1;">Cancel</button>
-    `;
-    chatInputArea.parentNode.insertBefore(actionBar, chatInputArea);
-    chatInputArea.style.display = 'none';
-  }
-}
-
-// Exit delete mode
-window.exitDeleteMode = function () {
-  const messagesContainer = document.getElementById('chat-messages');
-  if (!messagesContainer) return;
-
-  messagesContainer.classList.remove('delete-mode');
-
-  // Remove all checkboxes
-  document.querySelectorAll('.message-delete-checkbox').forEach(cb => cb.remove());
-
-  // Reset message margins
-  messagesContainer.querySelectorAll('.message-bubble').forEach(bubble => {
-    bubble.style.marginLeft = '';
-  });
-
-  // Remove action bar and show input area
-  const actionBar = document.getElementById('delete-action-bar');
-  if (actionBar) actionBar.remove();
-
-  const chatInputArea = document.querySelector('.chat-input-area');
-  if (chatInputArea) chatInputArea.style.display = '';
-}
-
-// Delete selected messages
-window.deleteSelectedMessages = async function (conversationId) {
-  const checkboxes = document.querySelectorAll('.message-delete-checkbox:checked');
-
-  if (checkboxes.length === 0) {
-    alert('Please select at least one message to delete.');
-    return;
-  }
-
-  if (!confirm(`Are you sure you want to delete ${checkboxes.length} selected message(s)?\n\nThis action cannot be undone.`)) {
-    return;
-  }
-
-  // Get message indices to delete
-  const indicesToDelete = Array.from(checkboxes).map(cb => parseInt(cb.getAttribute('data-message-index')));
-
-  // Get all messages
-  const messagesContainer = document.getElementById('chat-messages');
-  const messageBubbles = Array.from(messagesContainer.querySelectorAll('.message-bubble'));
-
-  // Remove selected messages from DOM
-  indicesToDelete.sort((a, b) => b - a); // Delete from end to start to preserve indices
-  indicesToDelete.forEach(index => {
-    if (messageBubbles[index]) {
-      messageBubbles[index].remove();
-    }
-  });
-
-  // Exit delete mode
-  exitDeleteMode();
-
-  // Show success message
-  alert(`${checkboxes.length} message(s) deleted successfully.`);
-
-  // TODO: Send API request to delete messages from database
-  // This is a placeholder - you'll need to implement the backend API
-  console.log('Messages to delete:', indicesToDelete);
-}
-
-// Delete entire chat conversation
-async function deleteChatConversation(conversationId, name) {
-  try {
-    const response = await fetch(`/api/messages/conversation/${conversationId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      alert(`Conversation with ${name} has been deleted.`);
-      // Close chat window and show empty state
-      const chatWindow = document.getElementById('chat-window');
-      if (chatWindow) {
-        chatWindow.innerHTML = `
-          <div class="empty-state">
-            <i style="font-size: 3rem;">💬</i>
-            <h3>Select a conversation</h3>
-            <p>Choose a user or group from the left to start chatting</p>
-            <button class="btn btn-primary mt-3" onclick="startNewConversation()">Start New Chat</button>
-          </div>
-        `;
-      }
-      // Reload conversation list
-      await loadConversations();
-    } else {
-      alert('Failed to delete conversation: ' + (data.message || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('Error deleting conversation:', error);
-    alert('Failed to delete conversation. Please try again.');
-  }
-}
-
-// Update file label
-window.updateFileLabel = function (input, conversationId) {
-  const display = document.getElementById(`file-name-display-${conversationId}`);
-  if (display && input.files && input.files[0]) {
-    display.textContent = `Selected: ${input.files[0].name}`;
-  } else if (display) {
-    display.textContent = '';
-  }
-}
-
-// Send message
-window.sendMessage = async function (event, conversationId) {
-  event.preventDefault();
-
-  const input = document.getElementById(`message-input-${conversationId}`);
-  const fileInput = document.getElementById(`file-input-${conversationId}`);
+// Helpers for Admin Chat
+window.sendMessage = async function (conversationId) {
+  const input = document.getElementById('messageInput');
   const content = input.value.trim();
-  const file = fileInput.files[0];
+  if (!content) return;
 
-  if (!content && !file) return;
+  // Optimistic UI update - show message immediately
+  const messagesContainer = document.getElementById('messages-container');
 
-  const formData = new FormData();
-  formData.append('conversationId', conversationId);
-  if (content) formData.append('content', content);
-  if (file) formData.append('attachment', file);
+  // Remove empty state if present
+  const emptyState = messagesContainer.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  const tempMsgId = 'temp-' + Date.now();
+  const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // Build reply context if replying
+  let replyContext = '';
+  if (window.currentReplyTo) {
+    // Get reply message details from the DOM
+    const replyMsg = document.querySelector(`[data-msg-id="${window.currentReplyTo}"]`);
+    if (replyMsg) {
+      const replyBubble = replyMsg.querySelector('.msg-bubble');
+      const replyText = replyBubble ? replyBubble.textContent.trim().substring(0, 50) : 'Message';
+      replyContext = `
+        <div class="reply-context">
+          <i class="ri-reply-line"></i>
+          <span class="reply-sender">${window.currentReplySender || 'User'}</span>
+          <span class="reply-text">${replyText}${replyText.length > 50 ? '...' : ''}</span>
+        </div>
+      `;
+    }
+  }
+
+  // Add message to UI immediately
+  messagesContainer.innerHTML += `
+    <div class="msg-wrapper sent" data-msg-id="${tempMsgId}">
+      <input type="checkbox" class="msg-select-checkbox" onchange="updateSelectionCount()">
+      <div class="msg-bubble">
+        ${replyContext}
+        ${content}
+        <span class="msg-time">${timeString}</span>
+        <div class="msg-actions">
+          <button class="msg-action-btn" onclick="toggleStar('${tempMsgId}', this)" title="Star">
+            <i class="ri-star-line"></i>
+          </button>
+          <button class="msg-action-btn" onclick="toggleEmojiPicker('${tempMsgId}', this)" title="React">
+            <i class="ri-emotion-line"></i>
+          </button>
+          <button class="msg-action-btn" onclick="setReplyTo('${tempMsgId}', 'You', '${content.replace(/'/g, "\\'").substring(0, 100)}')" title="Reply">
+            <i class="ri-reply-line"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Clear input and scroll
+  input.value = '';
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  const payload = {
+    conversationId: conversationId,
+    content: content
+  };
+
+  if (window.currentReplyTo) {
+    payload.replyToId = window.currentReplyTo;
+  }
 
   try {
     const response = await fetch('/api/messages', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-        // Content-Type is automatically set by browser for FormData
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
       },
-      body: formData
+      body: JSON.stringify(payload)
     });
-
     const data = await response.json();
 
     if (data.success) {
-      input.value = '';
-      fileInput.value = ''; // Clear file input
-      const fileDisplay = document.getElementById(`file-name-display-${conversationId}`);
-      if (fileDisplay) fileDisplay.textContent = '';
-
-      // Append message to chat immediately
-      const messagesContainer = document.getElementById('chat-messages');
-      if (!messagesContainer) return;
-
-      // Remove "No messages yet" if present
-      if (messagesContainer.innerText.includes('No messages yet')) {
-        messagesContainer.innerHTML = '';
+      // Update temp message with real ID
+      const tempMsg = messagesContainer.querySelector(`[data-msg-id="${tempMsgId}"]`);
+      if (tempMsg && data.message) {
+        tempMsg.setAttribute('data-msg-id', data.message.id);
       }
 
-      let attachmentHtml = '';
-      if (data.message.attachmentUrl) {
-        if (data.message.attachmentType === 'image') {
-          attachmentHtml = `<div class="message-attachment"><img src="${data.message.attachmentUrl}" alt="Attachment" style="max-width: 200px; max-height: 200px; border-radius: 4px; margin-top: 5px; cursor: pointer;" onclick="window.open('${data.message.attachmentUrl}', '_blank')"></div>`;
-        } else {
-          attachmentHtml = `<div class="message-attachment"><a href="${data.message.attachmentUrl}" target="_blank" class="btn btn-sm btn-outline-primary" style="margin-top: 5px;">📄 Download Document</a></div>`;
-        }
+      if (tempMsg && data.message) {
+        tempMsg.setAttribute('data-msg-id', data.message.id);
       }
 
-      const msgDiv = document.createElement('div');
-      msgDiv.className = 'message-bubble message-sent';
-      msgDiv.innerHTML = `
-        <div class="message-content">${data.message.content}</div>
-        ${attachmentHtml}
-        <div class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-      `;
-      messagesContainer.appendChild(msgDiv);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-      // Note: Not calling loadConversations() here to avoid sidebar flickering
-      // Conversation list will update on next natural refresh
+      // Clear reply state
+      window.currentReplyTo = null;
+      window.currentReplySender = null;
+      const preview = document.querySelector('.reply-preview');
+      if (preview) preview.remove();
     } else {
+      // If failed, remove the optimistic message
+      const tempMsg = messagesContainer.querySelector(`[data-msg-id="${tempMsgId}"]`);
+      if (tempMsg) tempMsg.remove();
       console.error('Failed to send message:', data.message);
-      alert('Failed to send message: ' + (data.message || 'Unknown error'));
     }
   } catch (error) {
-    console.error('Error sending message:', error);
-    alert('Failed to send message. Please try again.');
+    // If error, remove the optimistic message
+    const tempMsg = messagesContainer.querySelector(`[data-msg-id="${tempMsgId}"]`);
+    if (tempMsg) tempMsg.remove();
+    console.error("Error sending message", error);
   }
 }
+
+window.toggleSelectionMode = function (enable) {
+  const wrappers = document.querySelectorAll('.msg-wrapper');
+  const header = document.getElementById('selection-header');
+  if (enable) {
+    document.body.classList.add('selection-active');
+    wrappers.forEach(w => w.classList.add('selection-mode'));
+    if (header) header.classList.add('active');
+    document.querySelectorAll('.btn-emoji').forEach(b => b.style.display = 'none');
+  } else {
+    document.body.classList.remove('selection-active');
+    wrappers.forEach(w => w.classList.remove('selection-mode'));
+    if (header) header.classList.remove('active');
+    document.querySelectorAll('.msg-select-checkbox').forEach(cb => cb.checked = false);
+    const countSpan = document.getElementById('selection-count');
+    if (countSpan) countSpan.textContent = '0 Selected';
+  }
+}
+
+window.updateSelectionCount = function () {
+  const count = document.querySelectorAll('.msg-select-checkbox:checked').length;
+  const countSpan = document.getElementById('selection-count');
+  if (countSpan) countSpan.textContent = `${count} Selected`;
+}
+
+window.toggleSearch = function () {
+  const bar = document.getElementById('chat-search-bar');
+  if (bar) {
+    bar.classList.toggle('active');
+    if (bar.classList.contains('active')) bar.querySelector('input').focus();
+  }
+}
+
+window.searchInChat = function (query) {
+  const term = query.toLowerCase();
+  const bubbles = document.querySelectorAll('.msg-bubble');
+  bubbles.forEach(bubble => {
+    const text = bubble.textContent.toLowerCase();
+    const wrapper = bubble.closest('.msg-wrapper');
+    if (wrapper) {
+      wrapper.style.display = text.includes(term) ? 'flex' : 'none';
+    }
+  });
+}
+
+
+window.toggleChatOptions = function (event) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById('chat-options-menu');
+  if (menu) {
+    menu.classList.toggle('show');
+    const close = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.classList.remove('show');
+        document.removeEventListener('click', close);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', close), 0);
+  }
+}
+
+window.toggleDetailsPane = function () {
+  const pane = document.getElementById('chat-details-pane');
+  const chatWindow = document.getElementById('chat-window');
+  if (pane && chatWindow) {
+    pane.classList.toggle('active');
+    if (pane.classList.contains('active')) {
+      chatWindow.style.marginRight = '300px'; // Adjust based on CSS
+      // Load details
+      const activeItem = document.querySelector('.chat-item.active');
+      if (activeItem) {
+        const name = activeItem.dataset.conversationName;
+        // Here normally you'd fetch more info
+        pane.innerHTML = `
+                <div class="details-header">
+                   <h3>Details</h3>
+                   <button class="btn-icon" onclick="toggleDetailsPane()"><i class="ri-close-line"></i></button>
+                </div>
+                <div class="details-content">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="/images/avatar-placeholder.png" class="details-avatar">
+                        <h4>${name}</h4>
+                    </div>
+                    <div class="details-section">
+                        <h5>Shared Media</h5>
+                        <div class="media-grid">
+                           <div class="media-item"></div>
+                           <div class="media-item"></div>
+                        </div>
+                    </div>
+                </div>
+             `;
+      }
+    } else {
+      chatWindow.style.marginRight = '0';
+    }
+  }
+}
+
+window.copySelectedMessages = function () {
+  const checked = document.querySelectorAll('.msg-select-checkbox:checked');
+  if (checked.length === 0) return alert('No messages selected');
+
+  const texts = [];
+  checked.forEach(cb => {
+    const wrapper = cb.closest('.msg-wrapper');
+    const bubble = wrapper.querySelector('.msg-bubble');
+    // Extract text node contents only ideally, but innerText works
+    texts.push(bubble.innerText.replace(/\d{1,2}:\d{2}\s?[AP]M/i, '').trim());
+  });
+
+  navigator.clipboard.writeText(texts.join('\n\n')).then(() => {
+    alert('Copied to clipboard');
+    toggleSelectionMode(false);
+  }).catch(err => console.error('Failed to copy', err));
+}
+
+window.deleteSelectedMessages = async function () {
+  const checked = document.querySelectorAll('.msg-select-checkbox:checked');
+  if (checked.length === 0) return alert('No messages selected');
+
+  if (!confirm(`Delete ${checked.length} messages?`)) return;
+
+  // Optimistic delete
+  checked.forEach(cb => {
+    const wrapper = cb.closest('.msg-wrapper');
+    wrapper.remove();
+  });
+
+  toggleSelectionMode(false);
+  // In real app, send IDs to backend
+}
+
+window.toggleEmojiPicker = function (messageId, button) {
+  // Close any existing picker
+  const existingPicker = document.querySelector('.emoji-picker');
+  if (existingPicker) existingPicker.remove();
+
+  // Create emoji picker
+  const picker = document.createElement('div');
+  picker.className = 'emoji-picker';
+  // Inline styles for safety if CSS missing
+  picker.style.cssText = 'position: absolute; bottom: 100%; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); z-index: 50; display: flex; gap: 8px;';
+
+  const emojis = ['❤️', '👍', '😊', '😂', '😮', '😢', '🔥', '🎉'];
+
+  picker.innerHTML = emojis.map(emoji =>
+    `<button class="emoji-btn" style="background:none; border:none; cursor:pointer; font-size: 1.25rem; padding: 4px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='transparent'" onclick="addReaction(${messageId}, '${emoji}'); event.stopPropagation();">${emoji}</button>`
+  ).join('');
+
+  if (button.parentElement) button.parentElement.style.position = 'relative';
+  button.parentElement.appendChild(picker);
+
+  // Close picker when clicking outside
+  setTimeout(() => {
+    const closeHandler = (e) => {
+      if (!picker.contains(e.target) && e.target !== button && !button.contains(e.target)) {
+        picker.remove();
+        document.removeEventListener('click', closeHandler);
+      }
+    };
+    document.addEventListener('click', closeHandler);
+  }, 10);
+};
+
+window.addReaction = function (messageId, emoji) {
+  const wrapper = document.querySelector(`.msg-wrapper[data-msg-id="${messageId}"]`);
+  if (!wrapper) return;
+
+  const bubble = wrapper.querySelector('.msg-bubble');
+  let reactions = bubble.querySelector('.msg-reactions');
+
+  if (!reactions) {
+    reactions = document.createElement('div');
+    reactions.className = 'msg-reactions';
+    // Inline styles matches typical modern chat look
+    reactions.style.cssText = 'display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;';
+    bubble.appendChild(reactions);
+  }
+
+  // Check if emoji already exists
+  const existingReaction = Array.from(reactions.children).find(r => r.textContent.startsWith(emoji));
+  if (existingReaction) {
+    // Increment count
+    const countSpan = existingReaction.querySelector('.reaction-count');
+    if (countSpan) {
+      const currentCount = parseInt(countSpan.textContent) || 1;
+      countSpan.textContent = currentCount + 1;
+    }
+  } else {
+    // Add new reaction
+    const reaction = document.createElement('span');
+    reaction.className = 'reaction-item';
+    reaction.style.cssText = 'background: rgba(0,0,0,0.05); border-radius: 12px; padding: 2px 8px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border: 1px solid transparent;';
+    reaction.innerHTML = `${emoji} <span class="reaction-count" style="font-size: 0.75rem; opacity: 0.8;">1</span>`;
+    reactions.appendChild(reaction);
+  }
+
+  // Close emoji picker
+  const picker = document.querySelector('.emoji-picker');
+  if (picker) picker.remove();
+};
+
+
 
 // Start new conversation modal
 window.startNewConversation = function () {
@@ -2935,3 +3145,44 @@ window.confirmDelete = async function () {
     alert('Error: Delete function not available');
   }
 };
+
+// --- Chat Helpers ---
+
+window.setReplyTo = function (msgId, senderName, content) {
+  const inputWrapper = document.querySelector('.input-wrapper');
+  const existing = inputWrapper.querySelector('.reply-preview');
+  if (existing) existing.remove();
+
+  const preview = document.createElement('div');
+  preview.className = 'reply-preview';
+  preview.innerHTML = `
+        <div style="font-size: 12px; color: var(--primary-color);">Replying to ${senderName}</div>
+        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${content}</div>
+        <i class="ri-close-line" onclick="this.parentElement.remove(); window.currentReplyTo = null; window.currentReplySender = null;" style="position: absolute; right: 5px; top: 5px; cursor: pointer;"></i>
+    `;
+  inputWrapper.insertBefore(preview, document.getElementById('messageInput'));
+  window.currentReplyTo = msgId;
+  window.currentReplySender = senderName;
+  document.getElementById('messageInput').focus();
+}
+
+window.toggleStar = function (msgId, btn) {
+  const icon = btn.querySelector('i');
+  const isStarred = icon.classList.contains('ri-star-fill');
+  // Optimistic toggle
+  if (isStarred) {
+    icon.className = 'ri-star-line';
+  } else {
+    icon.className = 'ri-star-fill';
+  }
+  // In real app, send API request
+  console.log('Toggle star for', msgId);
+}
+
+window.handleFileUpload = function (input) {
+  if (input.files && input.files[0]) {
+    alert("File selected: " + input.files[0].name + " (Upload feature pending backend)");
+    // Reset to allow re-selecting same file
+    input.value = '';
+  }
+}

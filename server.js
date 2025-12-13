@@ -41,8 +41,13 @@ const io = new Server(httpServer, {
 const socketAuth = require('./middleware/socketAuth');
 io.use(socketAuth);
 
-// Classroom Socket.IO handlers
+// Attach io to app for use in routes
+app.set('socketio', io);
+global.io = io;
+
+// Socket.IO handlers
 require('./sockets/classroom.socket')(io);
+require('./sockets/messages.socket')(io);
 
 
 // Middleware
@@ -129,18 +134,15 @@ const connectDB = async () => {
 // Connect to database
 connectDB();
 
-// Initialize mediasoup workers
-const mediasoupService = require('./services/mediasoupService');
-mediasoupService.initWorkers().then(() => {
-    console.log('✅ Mediasoup workers initialized and ready');
-}).catch(error => {
-    console.error('❌ Mediasoup initialization failed:', error);
-    process.exit(1);
-});
+
 
 // Start automated message cleanup job (deletes messages older than 7 days)
 const messageCleanup = require('./jobs/messageCleanup');
 messageCleanup.start();
+
+// Start automated user activity cleanup (keeps only last entry per user, deletes entries older than 48 hours)
+const { scheduleCleanup } = require('./cleanup-user-activity');
+scheduleCleanup();
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -187,7 +189,7 @@ httpServer.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`💾 Database: MySQL`);
-    console.log(`🎥 Online Classroom: Enabled (mediasoup + Socket.IO)`);
+    console.log(`🎥 Online Classroom: Enabled (P2P WebRTC)`);
 });
 
 // Graceful shutdown

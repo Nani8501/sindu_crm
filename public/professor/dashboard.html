@@ -14,8 +14,15 @@
     <link rel="stylesheet" href="/css/dashboard.css">
     <link rel="stylesheet" href="/css/analytics-dashboard.css">
     <link rel="stylesheet" href="/css/loading-animations.css">
+    <link rel="stylesheet" href="/css/dashboard.css">
+    <link rel="stylesheet" href="/css/analytics-dashboard.css">
+    <link rel="stylesheet" href="/css/loading-animations.css">
     <link rel="stylesheet" href="/css/ai-chat.css">
+    <link rel="stylesheet" href="/css/modern-chat.css">
+    <link rel="stylesheet" href="/css/message-popup.css">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/message-notification.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -24,51 +31,59 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar-header">
-            <img src="/images/logo-light.png" alt="Sindhu Software Solutions" class="sidebar-logo"
-                style="max-width: 200px; margin: 0 auto; display: block;">
-            <p class="user-role" style="margin-top: 1rem; text-align: center; color: rgba(255,255,255,0.7);">Professor
-                Portal</p>
+            <div class="logo-container">
+                <img src="/images/sidebar-logo.png" alt="Logo" class="logo-img logo-collapsed"
+                    style="height: 32px; width: auto;">
+                <img src="/images/sidebar-logo-full.png" alt="Logo" class="logo-img logo-expanded"
+                    style="height: 40px; width: auto; display: none;">
+                <div class="logo-text" style="display: none;">Sindhu</div>
+            </div>
+            <button id="sidebar-toggle" class="btn-icon">
+                <i class="ri-menu-line"></i>
+            </button>
         </div>
 
-        <nav class="sidebar-nav">
+        <nav class="nav-links">
             <a href="#" class="nav-item active" data-section="overview">
                 <i class="ri-dashboard-line"></i>
-                <span>Overview</span>
+                <span class="nav-text">Overview</span>
             </a>
             <a href="#" class="nav-item" data-section="courses">
                 <i class="ri-book-open-line"></i>
-                <span>My Courses</span>
+                <span class="nav-text">My Courses</span>
             </a>
             <a href="#" class="nav-item" data-section="assignments">
-                <i class="ri-clipboard-line"></i>
-                <span>Assignments</span>
+                <i class="ri-file-list-3-line"></i>
+                <span class="nav-text">Assignments</span>
             </a>
             <a href="#" class="nav-item" data-section="sessions">
                 <i class="ri-calendar-event-line"></i>
-                <span>Sessions</span>
+                <span class="nav-text">Sessions</span>
             </a>
             <a href="#" class="nav-item" data-section="classrooms">
                 <i class="ri-video-line"></i>
-                <span>Online Classrooms</span>
+                <span class="nav-text">Classrooms</span>
             </a>
             <a href="#" class="nav-item" data-section="students">
                 <i class="ri-group-line"></i>
-                <span>Students</span>
+                <span class="nav-text">My Students</span>
             </a>
             <a href="#" class="nav-item" data-section="messages">
                 <i class="ri-message-3-line"></i>
-                <span>Messages</span>
+                <span class="nav-text">Messages</span>
             </a>
             <a href="#" class="nav-item" data-section="study-buddy">
                 <i class="ri-robot-2-line"></i>
-                <span>Study Buddy</span>
+                <span class="nav-text">AI Assistant</span>
             </a>
         </nav>
 
         <div class="sidebar-footer">
-            <div class="sidebar-footer">
-                <button class="btn btn-secondary btn-block" onclick="logout()">Logout</button>
-            </div>
+            <button class="nav-item" onclick="logout()"
+                style="width: 100%; text-align: left; background: none; border: none; font-family: inherit; font-size: inherit; color: inherit; cursor: pointer; display: flex; align-items: center; padding: 12px 15px;">
+                <i class="ri-logout-box-line"></i>
+                <span class="nav-text" style="margin-left: 10px;">Logout</span>
+            </button>
         </div>
     </aside>
 
@@ -110,12 +125,69 @@
     </div>
 
     <main class="main-content">
+        <!-- Visual Debug Console -->
+        <div id="visual-console"
+            style="display: block; position: fixed; bottom: 0; left: 0; width: 100%; height: 200px; background: rgba(0,0,0,0.9); color: #0f0; font-family: monospace; font-size: 12px; overflow-y: auto; z-index: 9999; padding: 10px; border-top: 2px solid #333;">
+            <div
+                style="position: sticky; top: 0; background: #222; padding: 5px; margin-bottom: 5px; border-bottom: 1px solid #444; display: flex; justify-content: space-between;">
+                <strong>🖥️ UI DEBUG CONSOLE</strong>
+                <button onclick="document.getElementById('visual-console').style.display='none'"
+                    style="background:red; color:white; border:none; padding:2px 8px; cursor:pointer;">Close</button>
+            </div>
+            <div id="console-logs"></div>
+        </div>
+
+        <script>
+            // Immediately capture errors
+            (function () {
+                const logContainer = document.getElementById('console-logs');
+                function addLog(type, args) {
+                    const line = document.createElement('div');
+                    line.style.borderBottom = '1px solid #222';
+                    line.style.padding = '2px 0';
+                    line.style.color = type === 'error' ? '#ff5555' : (type === 'warn' ? '#ffaa00' : '#00ff00');
+
+                    const timestamp = new Date().toLocaleTimeString();
+                    const message = Array.from(args).map(arg => {
+                        if (typeof arg === 'object') {
+                            try { return JSON.stringify(arg); } catch (e) { return '[Object]'; }
+                        }
+                        return String(arg);
+                    }).join(' ');
+
+                    line.textContent = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+                    logContainer.appendChild(line);
+                    // document.getElementById('visual-console').scrollTop = document.getElementById('visual-console').scrollHeight;
+                }
+
+                const originalLog = console.log;
+                const originalError = console.error;
+                const originalWarn = console.warn;
+
+                console.log = function (...args) { addLog('log', args); originalLog.apply(console, args); };
+                console.error = function (...args) { addLog('error', args); originalError.apply(console, args); };
+                console.warn = function (...args) { addLog('warn', args); originalWarn.apply(console, args); };
+
+                window.onerror = function (msg, url, line, col, error) {
+                    const errorDetails = error ? {
+                        message: error.message || msg,
+                        stack: error.stack,
+                        name: error.name
+                    } : { message: msg };
+                    addLog('error', [`Global Error at ${url}:${line}:${col}`, JSON.stringify(errorDetails)]);
+                    return false;
+                };
+
+                console.log("✅ Debug Console Initialized");
+            })();
+        </script>
+
         <!-- Section Title -->
         <h1 id="section-title" style="margin-bottom: 1.5rem; font-size: 1.75rem;">Dashboard Overview</h1>
 
         <!-- Overview Section -->
         <section class="content-section active" id="overview-section">
-            <!-- Stats Grid (Admin Style) -->
+            <!-- Stats Grid -->
             <div class="stats-container mb-4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;">
                 <div class="stat-card">
                     <div class="stat-icon"><i class="ri-book-open-line"></i></div>
@@ -214,9 +286,8 @@
         <!-- Courses Section -->
         <section class="content-section" id="courses-section">
             <div class="section-actions mb-3">
-                <!-- Create Course removed for Professors -->
+                <button class="btn btn-primary" onclick="showCreateCourse()">+ Create Course</button>
             </div>
-
             <div id="courses-list" class="grid grid-2"></div>
         </section>
 
@@ -224,9 +295,6 @@
         <section class="content-section" id="assignments-section">
             <div class="section-actions mb-3" style="display: flex; gap: 10px;">
                 <button class="btn btn-primary" onclick="showCreateAssignment()">+ Create Assignment</button>
-                <button class="btn btn-secondary" onclick="showCreateAIQuiz()">
-                    <i class="ri-magic-line"></i> Create AI Quiz
-                </button>
             </div>
             <div id="assignments-list"></div>
         </section>
@@ -250,7 +318,6 @@
                     <i class="ri-refresh-line"></i> Refresh
                 </button>
             </div>
-
             <!-- Active Classrooms -->
             <div class="widget-card mb-3">
                 <div class="widget-header">
@@ -271,30 +338,197 @@
                     <p class="text-muted">No upcoming classrooms</p>
                 </div>
             </div>
-
-            <!-- Past Classrooms -->
-            <div class="widget-card">
-                <div class="widget-header">
-                    <h3><i class="ri-history-line" style="margin-right: 8px; color: #6b7280;"></i> Past Classrooms</h3>
-                </div>
-                <div id="past-classrooms-list">
-                    <p class="text-muted">No past classrooms</p>
-                </div>
-            </div>
         </section>
 
         <!-- Students Section -->
         <section class="content-section" id="students-section">
-            <div id="students-list"></div>
+            <div id="students-list" class="grid grid-3"></div>
         </section>
 
         <!-- Messages Section -->
         <section id="messages-section" class="content-section">
-            <div class="section-header">
-                <!-- Header removed as per user request -->
-            </div>
-            <div class="section-content">
-                <div id="messages-list"></div>
+            <div class="chat-layout">
+                <div class="chat-container-modern">
+                    <!-- Sidebar -->
+                    <div class="chat-sidebar">
+                        <div class="chat-sidebar-header">
+                            <div
+                                style="margin-bottom: 20px; padding: 0 10px; display: flex; align-items: center; gap: 12px;">
+                                <button class="mobile-menu-btn btn-icon" onclick="toggleGlobalSidebar()"
+                                    style="font-size: 1.5rem; color: var(--text-primary);">
+                                    <i class="ri-menu-line"></i>
+                                </button>
+                                <img src="/images/sindhu-logo.png" alt="Sindhu Software"
+                                    style="height: 32px; width: auto; display: block;">
+                            </div>
+                            <div class="search-box">
+                                <i class="ri-search-line" style="color: var(--chat-text-muted);"></i>
+                                <input type="text" placeholder="Search chats..." id="chat-search">
+                            </div>
+                        </div>
+
+                        <div class="chat-list" id="conversation-list">
+                            <div style="padding: 20px; text-align: center; color: var(--chat-text-muted);">Loading...
+                            </div>
+                        </div>
+
+                        <!-- Fixed Sidebar Footer -->
+                        <div class="chat-sidebar-footer"
+                            style="padding: 16px; border-top: 1px solid var(--chat-border);">
+                            <button class="btn-new-chat" onclick="startNewConversation()">
+                                <i class="ri-add-line"></i> Create New
+                            </button>
+                            <button class="btn-new-chat" onclick="openCreateGroupModal()"
+                                style="margin-top: 8px; background: #00838f;">
+                                <i class="ri-group-line"></i> Create Group
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Main Chat -->
+                    <div class="chat-main" id="chat-window">
+                        <div class="chat-header" id="chat-header" style="visibility: hidden; position: relative;">
+
+                            <!-- Normal Header Content -->
+                            <div class="header-content" style="display: flex; flex: 1; align-items: center;">
+                                <div class="header-user" onclick="toggleDetails()"
+                                    style="flex: 1; overflow: hidden; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                    <button class="mobile-back-btn"
+                                        onclick="event.stopPropagation(); closeMobileChat()">
+                                        <i class="ri-arrow-left-line"></i>
+                                    </button>
+                                    <div class="avatar-wrapper">
+                                        <img src="/images/avatar-placeholder.png" alt="User" class="avatar-img"
+                                            id="chat-header-avatar">
+                                        <div class="status-dot status-online" id="chat-header-status-dot"></div>
+                                    </div>
+                                    <div style="min-width: 0;">
+                                        <h3 class="chat-name" id="chat-header-name"
+                                            style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            Select a conversation</h3>
+                                        <div class="chat-time" id="chat-header-status"
+                                            style="text-align: left; color: #10b981;">Online</div>
+                                    </div>
+                                </div>
+
+                                <!-- Search Bar (Hidden by default) -->
+                                <div class="chat-header-search" id="chat-search-bar">
+                                    <i class="ri-search-line"></i>
+                                    <input type="text" placeholder="Search in chat..."
+                                        onkeyup="searchInChat(this.value)">
+                                    <i class="ri-close-circle-fill" onclick="toggleSearch()"
+                                        style="left: auto; right: 12px; cursor: pointer; color: #9ca3af;"></i>
+                                </div>
+
+                                <div class="header-actions">
+                                    <button class="action-btn" title="Search" onclick="toggleSearch()">
+                                        <i class="ri-search-line"></i>
+                                    </button>
+                                    <div style="position: relative;">
+                                        <button class="action-btn" title="More Options"
+                                            onclick="toggleChatOptions(event)">
+                                            <i class="ri-more-fill"></i>
+                                        </button>
+                                        <!-- Dropdown Menu -->
+                                        <div class="chat-options-dropdown" id="chat-options-menu">
+                                            <button class="dropdown-item" onclick="toggleSelectionMode(true)">
+                                                <i class="ri-checkbox-multiple-line"></i> Select Messages
+                                            </button>
+                                            <button class="dropdown-item danger" onclick="deleteCompleteChat()">
+                                                <i class="ri-delete-bin-line"></i> Delete Chat
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button class="action-btn" onclick="toggleDetails()" title="Info">
+                                        <i class="ri-information-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Selection Mode Header (Overlay) -->
+                            <div class="selection-header" id="selection-header">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <button class="btn-icon" onclick="toggleSelectionMode(false)">
+                                        <i class="ri-close-line"></i>
+                                    </button>
+                                    <span id="selection-count" style="font-weight: 600;">0 Selected</span>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="btn-icon" onclick="copySelectedMessages()" title="Copy Text">
+                                        <i class="ri-file-copy-line"></i>
+                                    </button>
+                                    <button class="btn-icon" onclick="deleteSelectedMessages()" style="color: #ef4444;"
+                                        title="Delete">
+                                        <i class="ri-delete-bin-line"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chat-messages" id="messages-container">
+                            <div class="empty-state" style="text-align: center; margin-top: 100px;">
+                                <i class="ri-chat-smile-2-line" style="font-size: 4rem; color: #d1fae5;"></i>
+                                <h3 style="color: var(--chat-text); margin-top: 20px;">Select a conversation</h3>
+                                <p style="color: var(--chat-text-muted);">Choose a user or group to start chatting</p>
+                            </div>
+                        </div>
+
+                        <!-- Chat Footer (Input) -->
+                        <div class="chat-footer" id="chat-footer" style="display: none;">
+                            <button class="btn-icon" onclick="document.getElementById('file-input').click()">
+                                <i class="ri-attachment-2"></i>
+                            </button>
+                            <input type="file" id="file-input" style="display: none;">
+
+                            <div class="input-wrapper">
+                                <input type="text" placeholder="Type a message..." id="messageInput"
+                                    onkeypress="if(event.key === 'Enter') sendMessage(window.currentConversationId)">
+                                <button class="btn-emoji">
+                                    <i class="ri-emotion-line"></i>
+                                </button>
+                            </div>
+
+                            <button class="btn-send" onclick="sendMessage(window.currentConversationId)">
+                                <i class="ri-send-plane-fill"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Details Pane -->
+                    <div class="chat-details" id="chat-details-pane">
+                        <div class="details-content">
+                            <div class="details-header">
+                                <div class="action-btn" onclick="toggleDetails()" style="cursor: pointer;"><i
+                                        class="ri-close-line"></i></div>
+                            </div>
+
+                            <!-- Profile Info -->
+                            <div class="profile-section">
+                                <img src="/images/avatar-placeholder.png" id="details-avatar" class="profile-large-img">
+                                <h3 class="profile-name-lg" id="details-name">User Name</h3>
+                                <span class="profile-status-lg" id="details-status">Online</span>
+                            </div>
+
+                            <!-- About -->
+                            <div class="detail-block">
+                                <h4 class="detail-block-title">About</h4>
+                                <div class="info-row">
+                                    <p style="font-size: 0.9rem; line-height: 1.5; color: var(--chat-text-muted);">
+                                        Bio not available.
+                                    </p>
+                                </div>
+                                <div class="info-row">
+                                    <i class="ri-phone-line"></i>
+                                    <span id="details-phone">--</span>
+                                </div>
+                                <div class="info-row">
+                                    <i class="ri-mail-line"></i>
+                                    <span id="details-email">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -316,17 +550,31 @@
 
     <script src="/js/api.js"></script>
     <script src="/js/auth.js"></script>
-    <script src="/js/conversation-accordion.js"></script>
-    <script src="/js/resizable-chat.js"></script>
-    <script src="/js/classroom/professor-classroom.js"></script>
     <script src="/js/notifications.js"></script>
     <script src="/js/cache-manager.js"></script>
     <script src="/js/loading-manager.js"></script>
     <script src="/js/cookie-consent.js"></script>
-    <script src="/js/study-buddy-section.js?v=2"></script>
+    <script src="/js/study-buddy-section.js?v=21"></script>
     <script src="/js/ai-chat.js"></script>
     <script src="/js/ai-study-buddy-button.js"></script>
-    <script src="/js/professor-dashboard.js?v=2"></script>
+    <script src="/js/conversation-accordion.js"></script>
+    <script src="/js/resizable-chat.js"></script>
+
+    <!--  Group Chat Helper Functions -->
+    <script src="/js/professor-dashboard-group-helpers.js"></script>
+
+    <!-- Use the external professor logic file -->
+    <script src="/js/activity-heartbeat.js"></script>
+    <script src="/js/professor-dashboard-debug.js?v=2"></script>
+    <script src="/js/professor-dashboard.js?v=7"></script>
+
+    <script>
+        // Simple visual console helper
+        function createVisualConsole() {
+            // Logic to show/hide debug console if needed (e.g. by shortcut)
+            // Already present in the HTML above
+        }
+    </script>
 </body>
 
 </html>

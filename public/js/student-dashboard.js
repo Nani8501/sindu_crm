@@ -1357,16 +1357,29 @@ async function loadConversations() {
       // Better: Update renderMessages structure to include a separate container for list vs header? 
       // Current ID 'conversation-list' is the flex container. Let's effectively rebuild the sidebar content here.
 
-      const listHTML = data.conversations.length === 0
+      // Filter out AI assistant conversations
+      const filteredConversations = data.conversations.filter(conv => {
+        let otherId = null;
+        if (conv.user) {
+          otherId = conv.user.id;
+        } else if (conv.participants) {
+          const other = conv.participants.find(p => p.id !== currentUser.id);
+          if (other) otherId = other.id;
+        }
+        // Check for both potential IDs used for AI
+        return otherId !== 'ai-assistant' && otherId !== 'ai-user';
+      });
+
+      const listHTML = filteredConversations.length === 0
         ? '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No conversations yet</div>'
-        : data.conversations.map(conv => {
+        : filteredConversations.map(conv => {
           // Backend returns: { conversationId, type, user: { name, img, ... }, lastMessage, unreadCount }
           // We need to map this to the UI
 
           let name = 'Unknown User';
           let avatar = '/images/avatar-placeholder.png';
           let status = 'offline';
-          const convId = conv.conversationId; // Correct property from backend
+          const convId = conv.conversationId || conv.id;
 
           if (conv.user) {
             name = conv.user.name || 'Unknown User';
@@ -1375,11 +1388,19 @@ async function loadConversations() {
             name = conv.name;
           }
 
+
           const lastMessage = conv.lastMessage ? (conv.lastMessage.content.length > 25 ? conv.lastMessage.content.substring(0, 25) + '...' : conv.lastMessage.content) : 'No messages';
-          // Fix date parsing if needed
-          const time = conv.lastMessage && conv.lastMessage.createdAt ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
           const unreadCount = conv.unreadCount || 0;
           const isActive = window.currentConversationId == convId ? 'active' : '';
+
+          // Get activity status for online indicator
+          const activityStatus = conv.activityStatus || 'Never seen';
+          const isOnline = activityStatus === 'Online';
+
+          // Format last message time
+          const messageTime = conv.lastMessage && conv.lastMessage.createdAt
+            ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '';
 
           // Store full conversation data in global map
           conversationDataMap.set(String(convId), conv);
@@ -1388,12 +1409,12 @@ async function loadConversations() {
             <div class="chat-item ${isActive}" onclick="loadChatHistory('${convId}', '${(name || '').replace(/'/g, "\\'")}')" data-conversation-id="${convId}">
                 <div class="avatar-wrapper">
                     <img src="${avatar}" alt="${name}" class="avatar-img">
-                    ${unreadCount > 0 ? `<div class="status-dot status-online" style="border-color: #fff;"></div>` : ''} 
+                    ${isOnline ? `<div class="status-dot status-online" style="border-color: #fff;"></div>` : ''} 
                 </div>
                 <div class="chat-info">
                     <div class="chat-name-row">
                         <span class="chat-name">${name}</span>
-                        <span class="chat-time">${time}</span>
+                        <span class="chat-time">${messageTime}</span>
                     </div>
                     <div class="chat-name-row">
                         <span class="chat-preview" style="${unreadCount > 0 ? 'color: var(--text-primary); font-weight: 500;' : ''}">${lastMessage}</span>
@@ -1437,7 +1458,11 @@ async function loadChatHistory(conversationId, conversationName, isNewGroup = fa
   // Get user details from stored conversation data
   const convData = conversationDataMap.get(String(conversationId));
   const chatUser = convData?.user || { name: conversationName };
-  console.log('🔍 Loading chat for:', conversationId, 'User data:', chatUser);
+  const activityStatus = convData?.activityStatus || 'Never seen';
+  const isOnline = activityStatus === 'Online';
+  const statusColor = isOnline ? '#10b981' : '#9ca3af';
+
+  console.log('🔍 Loading chat for:', conversationId, 'User data:', chatUser, 'Status:', activityStatus);
 
   // Layout Elements
   const chatHeader = document.getElementById('chat-header');
@@ -1456,11 +1481,11 @@ async function loadChatHistory(conversationId, conversationName, isNewGroup = fa
                 </button>
                 <div class="avatar-wrapper">
                      <img src="/images/avatar-placeholder.png" class="avatar-img">
-                     <div class="status-dot status-online"></div>
+                     ${isOnline ? '<div class="status-dot status-online"></div>' : ''}
                 </div>
                 <div style="min-width: 0;">
                     <h3 class="chat-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${conversationName}</h3>
-                    <div class="chat-time" style="text-align: left; color: #10b981;">Online</div>
+                    <div class="chat-time" style="text-align: left; color: ${statusColor};">${activityStatus}</div>
                 </div>
             </div>
 
@@ -1585,6 +1610,9 @@ async function loadChatHistory(conversationId, conversationName, isNewGroup = fa
         });
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
+    } else {
+      console.error('Failed to load messages:', data.message);
+      if (messagesContainer) messagesContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--error-color, red);">Failed to load messages.</div>';
     }
 
 
@@ -2053,18 +2081,46 @@ window.sendMessage = async function (e, conversationId = window.currentConversat
   const content = input.value.trim();
   if (!content) return;
 
-  // Optimistic UI update
+  // Optimistic UI update with full message structure
   const messagesContainer = document.getElementById('messages-container');
   // Remove empty state if present
   const emptyState = messagesContainer.querySelector('.empty-state');
   if (emptyState) emptyState.remove();
 
+  const tempMsgId = 'temp-' + Date.now();
+  const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // Build reply context if replying
+  let replyContext = '';
+  if (replyToMessage) {
+    const replyText = replyToMessage.content.length > 50 ? replyToMessage.content.substring(0, 50) + '...' : replyToMessage.content;
+    replyContext = `
+      <div class="reply-context">
+        <i class="ri-reply-line"></i>
+        <span class="reply-sender">${replyToMessage.senderName}</span>
+        <span class="reply-text">${replyText}</span>
+      </div>
+    `;
+  }
+
   messagesContainer.innerHTML += `
-    <div class="msg-wrapper sent">
+    <div class="msg-wrapper sent" data-msg-id="${tempMsgId}">
         <input type="checkbox" class="msg-select-checkbox" onchange="updateSelectionCount()">
         <div class="msg-bubble">
+            ${replyContext}
             ${content}
-            <span class="msg-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <span class="msg-time">${timeString}</span>
+            <div class="msg-actions">
+                <button class="msg-action-btn" onclick="toggleStar('${tempMsgId}', this)" title="Star">
+                    <i class="ri-star-line"></i>
+                </button>
+                <button class="msg-action-btn" onclick="toggleEmojiPicker('${tempMsgId}', this)" title="React">
+                    <i class="ri-emotion-line"></i>
+                </button>
+                <button class="msg-action-btn" onclick="setReplyTo('${tempMsgId}', '${(currentUser?.name || 'You').replace(/'/g, "\\'")}', '${content.replace(/'/g, "\\'").substring(0, 100)}')" title="Reply">
+                    <i class="ri-reply-line"></i>
+                </button>
+            </div>
         </div>
     </div>
   `;
@@ -2092,16 +2148,33 @@ window.sendMessage = async function (e, conversationId = window.currentConversat
 
     const data = await response.json();
     if (data.success) {
+      // Update the temp message with real ID
+      const tempMsg = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
+      if (tempMsg && data.message) {
+        tempMsg.setAttribute('data-msg-id', data.message.id);
+        // Update the onclick handlers with real ID
+        const actions = tempMsg.querySelectorAll('.msg-action-btn');
+        if (actions[0]) actions[0].setAttribute('onclick', `toggleStar(${data.message.id}, this)`);
+        if (actions[1]) actions[1].setAttribute('onclick', `toggleEmojiPicker(${data.message.id}, this)`);
+        if (actions[2]) actions[2].setAttribute('onclick', `setReplyTo(${data.message.id}, '${(currentUser?.name || 'You').replace(/'/g, "\\'")}', '${content.replace(/'/g, "\\'").substring(0, 100)}')`);
+      }
+
       // Clear reply preview if message was sent
       if (replyToMessage) {
         cancelReply();
       }
     } else {
       console.error("Message send failed:", data.message);
-      // Ideally show error in UI
+      // Remove the optimistic message
+      const tempMsg = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
+      if (tempMsg) tempMsg.remove();
+      window.notify.error(data.message || 'Failed to send message');
     }
   } catch (error) {
     console.error('Send message error:', error);
+    // Remove the optimistic message on error
+    const tempMsg = document.querySelector(`[data-msg-id="${tempMsgId}"]`);
+    if (tempMsg) tempMsg.remove();
     window.notify.error('Failed to send message');
   }
 }

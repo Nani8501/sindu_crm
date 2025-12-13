@@ -25,6 +25,11 @@ const ConversationParticipant = sequelize.define('ConversationParticipant', {
             key: 'id'
         }
     },
+    addedBy: {
+        type: DataTypes.STRING(30),
+        allowNull: true, // Creator adds initial members, null for self-join
+        field: 'added_by'
+    },
     joinedAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW

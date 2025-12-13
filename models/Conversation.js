@@ -15,6 +15,14 @@ const Conversation = sequelize.define('Conversation', {
         type: DataTypes.STRING,
         allowNull: true // Only for group chats
     },
+    createdBy: {
+        type: DataTypes.STRING, // User ID of creator
+        allowNull: true // Only for group chats
+    },
+    iconUrl: {
+        type: DataTypes.STRING,
+        allowNull: true // Optional group icon
+    },
     lastMessageAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW

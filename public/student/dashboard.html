@@ -15,9 +15,12 @@
     <link rel="stylesheet" href="/css/analytics-dashboard.css">
     <link rel="stylesheet" href="/css/loading-animations.css">
     <link rel="stylesheet" href="/css/ai-chat.css">
-    <link rel="stylesheet" href="/css/modern-chat.css?v=2">
+    <link rel="stylesheet" href="/css/modern-chat.css">
+    <link rel="stylesheet" href="/css/message-popup.css">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/message-notification.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -120,7 +123,7 @@
 
     <main class="main-content">
         <!-- Section Title -->
-        <h1 id="section-title" style="margin-bottom: 1.5rem; font-size: 1.75rem;">Dashboard Overview</h1>
+        <h1 id="section-title" style="font-size: 1.75rem;">Dashboard Overview</h1>
 
         <!-- Admin View Banner -->
         <div id="admin-banner"
@@ -336,7 +339,7 @@
 
         <!-- Messages Section -->
         <section class="content-section" id="messages-section">
-            <div class="section-actions mb-3">
+            <div class="section-actions">
                 <!-- Compose Message button removed -->
             </div>
             <div id="messages-list"></div>
@@ -372,6 +375,7 @@
     <script src="/js/conversation-accordion.js"></script>
     <script src="/js/resizable-chat.js"></script>
     <script src="/js/classroom/student-classroom.js"></script>
+    <script src="/js/activity-heartbeat.js"></script>
     <script src="/js/student-dashboard.js?v=6"></script>
     <script>
         // Simple helper to toggle details pane (optionally used)

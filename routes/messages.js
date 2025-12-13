@@ -206,35 +206,56 @@ router.get('/', protect, async (req, res) => {
 });
 
 // @route   GET /api/messages/conversations
-// @desc    Get user's conversations
+// @desc    Get user's conversations with online status
 // @access  Private
 router.get('/conversations', protect, async (req, res) => {
     try {
-        // Find all conversations for the user
-        const participants = await ConversationParticipant.findAll({
+        const { UserActivity } = require('../models');
+
+        // Find all conversation IDs where user is a participant
+        const userParticipations = await ConversationParticipant.findAll({
             where: { userId: req.user.id },
-            include: [{
-                model: Conversation,
-                include: [
-                    {
-                        model: Message,
-                        as: 'messages',
-                        limit: 1,
-                        order: [['createdAt', 'DESC']]
-                    },
-                    {
-                        model: User,
-                        as: 'participants',
-                        attributes: ['id', 'name', 'role', 'email', 'phone', 'bio', 'address']
-                    }
-                ]
-            }],
-            order: [[Conversation, 'lastMessageAt', 'DESC']]
+            attributes: ['conversationId']
         });
 
-        const conversations = participants.map(p => {
-            const conv = p.Conversation;
-            const lastMsg = conv.messages[0];
+        const conversationIds = userParticipations.map(p => p.conversationId);
+
+        if (conversationIds.length === 0) {
+            return res.json({ success: true, conversations: [] });
+        }
+
+        // Fetch conversations with proper ordering
+        const conversations = await Conversation.findAll({
+            where: {
+                id: {
+                    [Op.in]: conversationIds
+                }
+            },
+            include: [
+                {
+                    model: Message,
+                    as: 'messages',
+                    limit: 1,
+                    order: [['createdAt', 'DESC']],
+                    separate: true // Fetch in separate query to avoid issues
+                },
+                {
+                    model: User,
+                    as: 'participants',
+                    attributes: ['id', 'name', 'role', 'email', 'phone', 'bio', 'address'],
+                    include: [{
+                        model: UserActivity,
+                        as: 'activity',
+                        attributes: ['lastSeenAt'],
+                        required: false
+                    }]
+                }
+            ],
+            order: [['lastMessageAt', 'DESC']]
+        });
+
+        const formattedConversations = conversations.map(conv => {
+            const lastMsg = conv.messages && conv.messages[0];
 
             // Determine display name/user
             let displayUser = null;
@@ -249,28 +270,44 @@ router.get('/conversations', protect, async (req, res) => {
                 };
             }
 
-            // Count unread messages
-            // This is expensive to do in loop, ideally should be a subquery or separate count
-            // For now, let's assume 0 or implement a simple count if needed
-            // A better way is to check readAt of messages vs user's last read time (if we tracked it per conversation)
-            // Or just count unread messages for this user in this conversation
-            // For simplicity in this iteration, we'll skip precise unread count or implement it later
+            // Calculate online status for direct chats
+            let activityStatus = 'Never seen';
+            if (displayUser && displayUser.activity) {
+                const lastSeen = new Date(displayUser.activity.lastSeenAt);
+                const now = new Date();
+                const diffSeconds = Math.floor((now - lastSeen) / 1000);
+
+                if (diffSeconds < 60) {
+                    activityStatus = 'Online';
+                } else if (diffSeconds < 3600) {
+                    const minutes = Math.floor(diffSeconds / 60);
+                    activityStatus = `${minutes}m ago`;
+                } else if (diffSeconds < 86400) {
+                    const hours = Math.floor(diffSeconds / 3600);
+                    activityStatus = `${hours}h ago`;
+                } else {
+                    const days = Math.floor(diffSeconds / 86400);
+                    activityStatus = `${days}d ago`;
+                }
+            }
 
             return {
                 conversationId: conv.id,
                 type: conv.type,
                 user: displayUser,
                 lastMessage: lastMsg || { content: 'No messages yet', createdAt: conv.createdAt },
-                unreadCount: 0 // Placeholder
+                unreadCount: 0, // Placeholder
+                activityStatus // Add activity status
             };
         });
 
-        res.json({ success: true, conversations });
+        res.json({ success: true, conversations: formattedConversations });
     } catch (error) {
         console.error('Get conversations error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
+
 
 // @route   GET /api/messages/direct/:userId
 // @desc    Get or create a direct conversation with a user
@@ -380,6 +417,7 @@ router.post('/', protect, upload.single('attachment'), async (req, res) => {
         });
 
         // Trigger AI if receiver is AI Assistant
+        // Trigger AI if receiver is AI Assistant
         if (receiver === 'ai-assistant' || targetConversationId) {
             // Check if the receiver in this conversation is AI
             // We can do this asynchronously
@@ -395,8 +433,15 @@ router.post('/', protect, upload.single('attachment'), async (req, res) => {
                     if (isAIInChat && req.user.id !== 'ai-assistant') {
                         await aiService.processMessage(message.id, req.user.id, content, isExternal, message.conversationId);
                     }
+
+                    // Emit socket event for real-time notifications
+                    const io = req.app.get('socketio');
+                    if (io) {
+                        const { emitNewMessage } = require('../utils/socketEmitter');
+                        await emitNewMessage(io, message, req.user.name, req.user.id);
+                    }
                 } catch (err) {
-                    console.error('Error triggering AI:', err);
+                    console.error('Error triggering AI or socket:', err);
                 }
             })();
         }
@@ -417,24 +462,198 @@ router.post('/groups', protect, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Name and participants required' });
         }
 
-        // Create group conversation
+        // Create group conversation with creator info
         const conversation = await Conversation.create({
             type: 'group',
-            name
+            name,
+            createdBy: req.user.id
         });
 
         // Add participants (including creator)
         const allParticipants = [...new Set([...participants, req.user.id])];
         const participantData = allParticipants.map(userId => ({
             conversationId: conversation.id,
-            userId
+            userId,
+            addedBy: userId === req.user.id ? null : req.user.id // Creator added others
         }));
 
         await ConversationParticipant.bulkCreate(participantData);
 
-        res.status(201).json({ success: true, conversation });
+        // Fetch created conversation with participants
+        const fullConversation = await Conversation.findByPk(conversation.id, {
+            include: [{
+                model: User,
+                as: 'participants',
+                attributes: ['id', 'name', 'role']
+            }]
+        });
+
+        res.status(201).json({ success: true, conversation: fullConversation });
     } catch (error) {
         console.error('Create group error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// @route   PATCH /api/messages/groups/:id/name
+// @desc    Update group name
+// @access  Private (Admin or Creator only)
+router.patch('/groups/:id/name', protect, async (req, res) => {
+    try {
+        const conversationId = req.params.id;
+        const { name } = req.body;
+
+        if (!name || name.trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Name is required' });
+        }
+
+        // Fetch conversation
+        const conversation = await Conversation.findByPk(conversationId);
+        if (!conversation || conversation.type !== 'group') {
+            return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+
+        // Check permissions (admin or creator)
+        const isAdmin = req.user.role === 'admin' || req.user.role === 'professor';
+        const isCreator = conversation.createdBy === req.user.id;
+
+        if (!isAdmin && !isCreator) {
+            return res.status(403).json({ success: false, message: 'Only admin or creator can update group name' });
+        }
+
+        // Update name
+        conversation.name = name.trim();
+        await conversation.save();
+
+        res.json({ success: true, conversation });
+    } catch (error) {
+        console.error('Update group name error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// @route   POST /api/messages/groups/:id/leave
+// @desc    Leave a group conversation
+// @access  Private
+router.post('/groups/:id/leave', protect, async (req, res) => {
+    try {
+        const conversationId = req.params.id;
+
+        // Verify it's a group
+        const conversation = await Conversation.findByPk(conversationId);
+        if (!conversation || conversation.type !== 'group') {
+            return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+
+        // Cannot leave if you're the only participant (delete group instead)
+        const participantCount = await ConversationParticipant.count({
+            where: { conversationId }
+        });
+
+        if (participantCount === 1) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot leave - you are the only member. Delete the group instead'
+            });
+        }
+
+        // Remove participant
+        const deleted = await ConversationParticipant.destroy({
+            where: {
+                conversationId,
+                userId: req.user.id
+            }
+        });
+
+        if (deleted === 0) {
+            return res.status(404).json({ success: false, message: 'You are not a member of this group' });
+        }
+
+        res.json({ success: true, message: 'Left group successfully' });
+    } catch (error) {
+        console.error('Leave group error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// @route   GET /api/messages/conversation/:id/metadata
+// @desc    Get detailed conversation metadata (for groups)
+// @access  Private
+router.get('/conversation/:id/metadata', protect, async (req, res) => {
+    try {
+        const conversationId = req.params.id;
+
+        // Verify participant
+        const isParticipant = await ConversationParticipant.findOne({
+            where: { conversationId, userId: req.user.id }
+        });
+
+        if (!isParticipant) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        // Fetch conversation with full details
+        const conversation = await Conversation.findByPk(conversationId, {
+            include: [{
+                model: ConversationParticipant,
+                as: 'conversationParticipants',
+                include: [{
+                    model: User,
+                    as: 'user',
+                    attributes: ['id', 'name', 'role', 'email']
+                }]
+            }]
+        });
+
+        if (!conversation) {
+            return res.status(404).json({ success: false, message: 'Conversation not found' });
+        }
+
+        // Get creator details if it's a group
+        let creatorName = null;
+        if (conversation.type === 'group' && conversation.createdBy) {
+            const creator = await User.findByPk(conversation.createdBy, {
+                attributes: ['name']
+            });
+            creatorName = creator ? creator.name : 'Unknown';
+        }
+
+        // Format participants with join info
+        const participants = conversation.conversationParticipants ?
+            conversation.conversationParticipants.map(cp => {
+                let addedByName = null;
+                if (cp.addedBy && cp.addedBy !== cp.userId) {
+                    // Find the user who added this participant
+                    const adder = conversation.conversationParticipants.find(
+                        p => p.userId === cp.addedBy
+                    );
+                    addedByName = adder && adder.user ? adder.user.name : 'Unknown';
+                }
+
+                return {
+                    id: cp.user.id,
+                    name: cp.user.name,
+                    role: cp.user.role,
+                    email: cp.user.email,
+                    joinedAt: cp.joinedAt,
+                    addedBy: addedByName || (cp.userId === conversation.createdBy ? null : creatorName)
+                };
+            }) : [];
+
+        const metadata = {
+            id: conversation.id,
+            name: conversation.name,
+            type: conversation.type,
+            createdBy: conversation.createdBy,
+            creatorName,
+            createdAt: conversation.createdAt,
+            iconUrl: conversation.iconUrl,
+            participants
+        };
+
+        res.json({ success: true, conversation: metadata });
+    } catch (error) {
+        console.error('Get conversation metadata error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });

@@ -275,7 +275,7 @@ Or ask me things like:
                 return;
             }
 
-            await Message.create({
+            const message = await Message.create({
                 senderId: this.aiUserId,
                 conversationId: targetConversationId,
                 content: content,
@@ -286,6 +286,31 @@ Or ask me things like:
                 { lastMessageAt: new Date() },
                 { where: { id: targetConversationId } }
             );
+
+            // Emit real-time notification
+            try {
+                // We need access to io. Since we can't easily import app, 
+                // we'll try to get it if attached to process or passed.
+                // Better approach: Require the emitter and pass a fallback getter if possible, 
+                // or assume global.io is not available.
+                // However, we attached io to app in server.js.
+                // Let's rely on a module-level setter or Require cycle.
+                // SAFEST: Pass io to processMessage/sendResponse or use a global if set?
+                // NodeJS globals are an option but ugly.
+                // Let's assume we can get it from the require cache of server or simply:
+                // We can't easily get 'app' here without circular dependency.
+
+                // Hack/Solution: We will use a singleton wrapper for IO or assign it to GLOBAL/process.
+                // For now, let's try to get it from process (if we set it in server.js) 
+                // OR update server.js to set global.io
+
+                if (global.io) {
+                    const { emitNewMessage } = require('../utils/socketEmitter');
+                    await emitNewMessage(global.io, message, 'Study Buddy', this.aiUserId);
+                }
+            } catch (sockErr) {
+                console.error('Socket emit error in AI Service:', sockErr);
+            }
 
         } catch (error) {
             console.error('Error sending AI response:', error);

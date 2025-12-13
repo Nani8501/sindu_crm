@@ -112,4 +112,61 @@ router.get('/admin', protect, authorize('admin'), async (req, res) => {
     }
 });
 
+// @route   GET /api/analytics/professor
+// @desc    Get professor dashboard analytics
+// @access  Private (Professor only)
+router.get('/professor', protect, authorize('professor'), async (req, res) => {
+    try {
+        const professorId = req.user.id;
+
+        // 1. Get Professor's Courses
+        const courses = await Course.findAll({
+            where: { professorId: professorId },
+            attributes: ['id']
+        });
+        const courseIds = courses.map(c => c.id);
+        const totalCourses = courses.length;
+
+        // 2. Count Total Students (Unique across all courses)
+        const uniqueStudents = await CourseEnrollment.count({
+            distinct: true,
+            col: 'studentId',
+            where: {
+                courseId: { [Op.in]: courseIds },
+                status: 'approved'
+            }
+        });
+
+        // 3. Count Active Assignments
+        const activeAssignments = await Assignment.count({
+            where: {
+                courseId: { [Op.in]: courseIds },
+                dueDate: { [Op.gte]: new Date() }
+            }
+        });
+
+        // 4. Count Scheduled Sessions
+        const scheduledSessions = await Session.count({
+            where: {
+                courseId: { [Op.in]: courseIds },
+                scheduledAt: { [Op.gte]: new Date() }
+            }
+        });
+
+        res.json({
+            success: true,
+            stats: {
+                totalCourses,
+                totalStudents: uniqueStudents,
+                activeAssignments,
+                scheduledSessions
+            }
+        });
+
+    } catch (error) {
+        console.error('Professor Analytics error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 module.exports = router;

@@ -155,6 +155,11 @@ Quiz.hasMany(QuizAccess, { as: 'accessTokens', foreignKey: 'quizId' });
 QuizAccess.belongsTo(User, { as: 'student', foreignKey: 'studentId' });
 User.hasMany(QuizAccess, { as: 'quizAccess', foreignKey: 'studentId' });
 
+// UserActivity Relationships
+const UserActivity = require('./UserActivity');
+UserActivity.belongsTo(User, { as: 'user', foreignKey: 'userId' });
+User.hasOne(UserActivity, { as: 'activity', foreignKey: 'userId' });
+
 module.exports = {
     sequelize,
     User,
@@ -171,5 +176,6 @@ module.exports = {
     ClassroomParticipant,
     Quiz,
     QuizSubmission,
-    QuizAccess
+    QuizAccess,
+    UserActivity
 };

@@ -49,8 +49,8 @@ class CookieConsent {
         style.textContent = `
             .cookie-floating-btn {
                 position: fixed;
-                bottom: 20px;
-                right: 20px;
+                bottom: 160px;
+                left: 30px;
                 width: 56px;
                 height: 56px;
                 border-radius: 50%;
@@ -60,7 +60,7 @@ class CookieConsent {
                 font-size: 1.5rem;
                 cursor: pointer;
                 box-shadow: 0 4px 20px rgba(26, 81, 111, 0.4);
-                z-index: 99998;
+                z-index: 997;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -87,8 +87,8 @@ class CookieConsent {
 
             .cookie-tooltip {
                 position: absolute;
-                right: 100%;
-                margin-right: 12px;
+                left: 100%;
+                margin-left: 12px;
                 background: var(--bg-card);
                 color: var(--text-primary);
                 padding: 8px 16px;
@@ -100,18 +100,18 @@ class CookieConsent {
                 opacity: 0;
                 pointer-events: none;
                 transition: opacity 0.2s, transform 0.2s;
-                transform: translateX(10px);
+                transform: translateX(-10px);
             }
 
             .cookie-tooltip::after {
                 content: '';
                 position: absolute;
-                right: -6px;
+                left: -6px;
                 top: 50%;
                 transform: translateY(-50%);
                 width: 0;
                 height: 0;
-                border-left: 6px solid var(--bg-card);
+                border-right: 6px solid var(--bg-card);
                 border-top: 6px solid transparent;
                 border-bottom: 6px solid transparent;
             }
@@ -151,8 +151,8 @@ class CookieConsent {
 
             @media (max-width: 768px) {
                 .cookie-floating-btn {
-                    bottom: 15px;
-                    right: 15px;
+                    bottom: 80px;
+                    left: 15px;
                     width: 48px;
                     height: 48px;
                     font-size: 1.3rem;

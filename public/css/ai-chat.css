@@ -22,7 +22,7 @@
     right: 30px;
     width: 60px;
     height: 60px;
-    background: linear-gradient(135deg, #1a516f 0%, #2d7a9e 100%);
+    background: linear-gradient(135deg, #1a516f 0%, #2d7a9e 100%) !important;
     border-radius: 50%;
     border: none;
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
@@ -30,12 +30,19 @@
     align-items: center;
     justify-content: center;
     cursor: pointer !important;
-    z-index: 2147483647 !important;
-    /* Max z-index */
+    z-index: 998 !important;
+    /* Below chat interface but above content */
     pointer-events: auto !important;
     color: white;
     font-size: 24px;
     transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.ai-chat-btn::before,
+.ai-fab::before,
+.ai-chat-btn::after,
+.ai-fab::after {
+    display: none !important;
 }
 
 .ai-chat-btn:hover,

@@ -132,6 +132,14 @@ router.post('/login', [
         user.lastLogin = new Date();
         await user.save();
 
+        // Update user activity (for online status tracking)
+        const { UserActivity } = require('../models');
+        await UserActivity.upsert({
+            userId: user.id,
+            lastSeenAt: new Date(),
+            socketId: null
+        });
+
         res.json({
             success: true,
             token,

@@ -137,6 +137,34 @@ router.put('/:id', protect, async (req, res) => {
     }
 });
 
+// @route   POST /api/users/activity
+// @desc    Update user activity (heartbeat for online status)
+// @access  Private
+router.post('/activity', protect, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { UserActivity } = require('../models');
+
+        // Upsert user activity - creates if doesn't exist, updates if exists
+        await UserActivity.upsert({
+            userId: userId,
+            lastSeenAt: new Date(),
+            socketId: null // Can be populated later if using Socket.io
+        });
+
+        res.json({
+            success: true,
+            message: 'Activity updated'
+        });
+    } catch (error) {
+        console.error('Update activity error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error updating activity'
+        });
+    }
+});
+
 // @route   DELETE /api/users/:id
 // @desc    Delete user
 // @access  Private (Admin only)

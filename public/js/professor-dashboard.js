@@ -9,36 +9,203 @@ let allUsers = [];
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', async () => {
+  // Create Visual Console for User Debugging
+  createVisualConsole();
+
+  // Connect global error handler to visual console
+  window.onerror = function (msg, url, line) {
+    console.error(`Global Error: ${msg} at ${line}`);
+    return false;
+  };
+
   currentUser = checkAuth();
+  console.log('DEBUG: Auth check result:', currentUser);
+
   if (!currentUser || currentUser.role !== 'professor') {
+    console.error('DEBUG: Auth failed or invalid role:', currentUser);
     window.location.href = '/';
     return;
   }
 
   // Display user name
-  document.getElementById('user-name').textContent = currentUser.name;
+  const userNameEl = document.getElementById('user-name');
+  if (userNameEl) {
+    userNameEl.textContent = currentUser.name;
+  } else {
+    console.warn('DEBUG: #user-name element not found');
+  }
 
   // Set up navigation
   setupNavigation();
 
-  // Load initial data
-  await loadAllData();
-
   // Initialize theme
   initTheme();
+
+  // Sidebar Toggle Logic
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.querySelector('.sidebar');
+  const body = document.body;
+
+  window.toggleGlobalSidebar = function () {
+    if (sidebar) {
+      sidebar.classList.toggle('expanded');
+      body.classList.toggle('sidebar-expanded');
+    }
+  }
+
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', window.toggleGlobalSidebar);
+  }
+
+  // Theme Toggle Logic
+  const themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) {
+    themeToggle.addEventListener('click', window.toggleTheme);
+  }
+
+  try {
+    console.log('DEBUG: Starting connection check...');
+    const isConnected = await checkConnection();
+    console.log('DEBUG: Connection check result:', isConnected);
+
+    if (!isConnected) {
+      console.error('CRITICAL: Backend connection failed');
+      alert('Cannot connect to server. Please check your internet connection or try again later.');
+    }
+
+    console.log('DEBUG: Starting loadAllData...');
+    await loadAllData();
+    console.log('DEBUG: loadAllData completed');
+  } catch (error) {
+    console.error('CRITICAL: Error during dashboard initialization:', error);
+  }
+
+  // Setup UI event listeners
 });
+
+async function checkConnection() {
+  try {
+    const response = await fetch('/api/health'); // Assuming a health endpoint exists, or use auth check
+    // If no health endpoint, we can use a lightweight call or just assume true if fetch doesn't throw network error
+    // But let's try a simple fetch to the API root or a known safe endpoint
+    const testRes = await fetch('/api/auth/me', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    return testRes.ok || testRes.status === 401; // 401 means connected but maybe auth issue, which is different from network fail
+  } catch (err) {
+    console.error('DEBUG: Connection check failed:', err);
+    return false;
+  }
+}
+
+
+async function loadAllData() {
+  console.log('DEBUG: Inside loadAllData');
+  try {
+    await Promise.all([
+      loadDashboardStats(),
+      // The original loadAllData called api.getCourses(), api.getAssignments(), etc.
+      // The new structure implies separate load functions for these.
+      // Assuming these are placeholders for future implementation or are handled by loadDashboardStats for overview.
+      // Keeping the original data loading for courses, assignments, sessions, messages for now,
+      // as the instruction only provided loadDashboardStats and not replacements for these.
+      // If loadCourses, loadAssignments, etc. are new functions, they would need to be defined.
+      // For now, I'll keep the original data fetching logic for these arrays.
+      (async () => {
+        const coursesRes = await api.getCourses();
+        courses = coursesRes.courses || [];
+        // Get unique students from all courses
+        allStudents = [];
+        courses.forEach(course => {
+          if (course.students) {
+            course.students.forEach(student => {
+              if (!allStudents.find(s => s.id === student.id)) {
+                allStudents.push(student);
+              }
+            });
+          }
+        });
+      })(),
+      (async () => {
+        const assignmentsRes = await api.getAssignments();
+        assignments = assignmentsRes.assignments || [];
+      })(),
+      (async () => {
+        const sessionsRes = await api.getSessions();
+        sessions = sessionsRes.sessions || [];
+      })(),
+      (async () => {
+        const messagesRes = await api.getMessages();
+        messages = messagesRes.messages || [];
+      })()
+    ]);
+    // The original code called renderOverview() here.
+    // The new structure implies updateDashboardUI handles the overview.
+    // If renderOverview() is still needed for other parts, it would be called elsewhere.
+    // For now, I'll assume updateDashboardUI replaces its overview functionality.
+  } catch (err) {
+    console.error('DEBUG: One or more load functions failed in loadAllData', err);
+  }
+}
+
+async function loadDashboardStats() {
+  console.log('DEBUG: Fetching dashboard stats...');
+  try {
+    const response = await fetch('/api/analytics/professor', {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+
+    console.log('DEBUG: Stats API status:', response.status);
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('DEBUG: Dashboard stats data:', data);
+
+    if (data.success) {
+      updateDashboardUI(data.stats);
+    } else {
+      console.error('DEBUG: Failed to load stats:', data.message);
+    }
+  } catch (error) {
+    console.error('DEBUG: Error loading dashboard stats:', error);
+  }
+}
+
+function updateDashboardUI(stats) {
+  console.log('DEBUG: Updating UI with stats:', stats);
+  // Safe update helper
+  const safelyUpdate = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = value || 0;
+    } else {
+      console.warn(`DEBUG: Element #${id} not found for stat update`);
+    }
+  };
+
+  safelyUpdate('courses-count', stats.totalCourses); // Changed from 'total-courses' to 'courses-count' to match existing HTML IDs
+  safelyUpdate('students-count', stats.totalStudents); // Changed from 'total-students' to 'students-count'
+  safelyUpdate('assignments-count', stats.activeAssignments); // Changed from 'active-assignments' to 'assignments-count'
+  safelyUpdate('sessions-count', stats.scheduledSessions); // Changed from 'scheduled-sessions' to 'sessions-count'
+}
 
 // Theme Management
 function initTheme() {
-  const savedTheme = localStorage.getItem('theme') || 'dark';
-  document.body.className = savedTheme === 'light' ? 'light-mode' : '';
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeIcon(savedTheme);
 }
 
 window.toggleTheme = function () {
-  const isLight = document.body.classList.toggle('light-mode');
-  const newTheme = isLight ? 'light' : 'dark';
+  const currentTheme = localStorage.getItem('theme') || 'light';
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+  document.documentElement.setAttribute('data-theme', newTheme);
   localStorage.setItem('theme', newTheme);
+
   updateThemeIcon(newTheme);
 }
 
@@ -65,13 +232,56 @@ function setupNavigation() {
 
       // Update active section
       sections.forEach(section => section.classList.remove('active'));
-      document.getElementById(`${sectionName}-section`).classList.add('active');
+      const targetSection = document.getElementById(`${sectionName}-section`);
+      if (targetSection) {
+        targetSection.classList.add('active');
+      }
 
       // Update header
-      updateHeader(sectionName);
+      // updateHeader(sectionName); // Remove this call to avoid double header
+      const titleElement = document.getElementById('section-title');
+      if (titleElement) {
+        if (sectionName === 'messages') {
+          // For messages, we might want to hide the main title if the chat UI has its own
+          // or just set it to 'Messages'
+          titleElement.textContent = 'Messages';
+          // actually, the dashboard might have a top header outside sections. 
+          // If the chat layout includes a sidebar with "Messages" H2, we might not need the main H2.
+        } else {
+          const titles = {
+            overview: 'Dashboard Overview',
+            courses: 'My Courses',
+            assignments: 'Assignments',
+            sessions: 'Class Sessions',
+            classrooms: 'Online Classrooms',
+            students: 'My Students',
+            messages: 'Messages', // This remains
+            'study-buddy': 'AI Assistant'
+          };
+          titleElement.textContent = titles[sectionName] || sectionName;
+        }
+      }
+
+      // Special handling for Study Buddy section
+      if (sectionName === 'study-buddy') {
+        if (!window.studyBuddySection) {
+          window.studyBuddySection = new StudyBuddySection();
+        }
+        setTimeout(() => {
+          window.studyBuddySection.init();
+        }, 100);
+      }
 
       // Load section data
       loadSectionData(sectionName);
+
+      // On mobile/tablet, collapse sidebar after selection
+      if (window.innerWidth <= 768) {
+        const sidebar = document.querySelector('.sidebar');
+        const body = document.body;
+        if (sidebar) sidebar.classList.remove('expanded');
+        if (body) body.classList.remove('sidebar-expanded');
+      }
     });
   });
 }
@@ -438,85 +648,254 @@ function renderStudents() {
 
 // Render messages (Chat Interface)
 async function renderMessages() {
-  const messagesEl = document.getElementById('messages-list');
-
-  // Create chat layout
-  messagesEl.innerHTML = `
-      <div class="chat-container">
-      <div class="conversation-list" id="conversation-list" style="position: relative; overflow: hidden; display: flex; flex-direction: column;">
-        <!-- Conversations will be loaded here -->
-        <div class="conversations-scroll" style="flex: 1; overflow-y: auto; padding-bottom: 80px;">
-            <div style="padding: 20px; text-align: center; color: var(--text-muted);">Loading...</div>
-        </div>
-        <div style="position: absolute; bottom: 20px; left: 20px; right: 20px; display: flex; gap: 10px; z-index: 10; padding-top: 10px;">
-          <button class="btn btn-primary" onclick="startNewConversation()" style="flex: 1;">New Chat</button>
-          <button class="btn btn-secondary" onclick="openCreateGroupModal()" style="flex: 1;">Create Group</button>
-        </div>
-      </div>
-      <div class="chat-window" id="chat-window">
-        <div class="empty-state">
-          <i style="font-size: 3rem;">💬</i>
-          <h3>Select a conversation</h3>
-          <p>Choose a user or group from the left to start chatting</p>
-          <p>Choose a user or group from the left to start chatting</p>
-        </div>
-      </div>
-    </div>
-      `;
-
-  // Add event delegation for conversation clicks (on parent that doesn't get replaced)
-  const conversationList = document.getElementById('conversation-list');
-  if (conversationList) {
-    conversationList.addEventListener('click', (e) => {
-      const conversationItem = e.target.closest('.conversation-item');
-      if (conversationItem) {
-        const convId = conversationItem.getAttribute('data-conversation-id');
-        const convName = conversationItem.getAttribute('data-conversation-name');
-        if (convId && convName) {
-          console.log('Conversation clicked:', convId, convName);
-          loadChatHistory(convId, convName);
-        }
-      }
-    });
+  console.log('DEBUG: renderMessages() called');
+  // The HTML structure is already in dashboard.html, so we just need to load conversations
+  // No need to dynamically create the layout
+  try {
+    await loadConversations();
+    console.log('DEBUG: loadConversations() completed in renderMessages');
+  } catch (error) {
+    console.error('ERROR in renderMessages calling loadConversations:', error);
   }
 
-  await loadConversations();
+  // Toggle Details Pane
+  window.toggleDetails = function () {
+    const pane = document.getElementById('chat-details-pane');
+    if (pane) {
+      pane.classList.toggle('open');
+    }
+  }
 }
 
-// Chat Helper Functions
+// Update Details Content
+async function updateDetailsPane(name, id, userDetails = {}, isGroup = false, groupData = null) {
+  const pane = document.getElementById('chat-details-pane');
+  if (!pane) return;
+
+  // Determine if current user is admin/creator
+  const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'professor');
+  const isCreator = groupData && currentUser && groupData.createdBy === currentUser.id;
+  const canEdit = isGroup && (isAdmin || isCreator);
+
+  if (isGroup && groupData) {
+    // GROUP CHAT DETAILS
+    pane.innerHTML = `
+      <div class="profile-card" style="text-align: center; padding: 24px 0;">
+        <div style="position: relative; display: inline-block;">
+          <div id="group-icon" style="width: 90px; height: 90px; border-radius: 50%; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; align-items: center; justify-content: center; 
+            color: white; font-weight: bold; font-size: 36px; margin: 0 auto 16px;">
+            ${name.charAt(0).toUpperCase()}
+          </div>
+          ${canEdit ? `
+            <button onclick="changeGroupIcon(${id})" 
+              style="position: absolute; bottom: 12px; right: -10px; width: 32px; height: 32px; 
+              border-radius: 50%; background: #006064; color: white; border: 2px solid white; 
+              cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              <i class="ri-camera-line"></i>
+            </button>
+          ` : ''}
+        </div>
+        
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <h3 id="group-name-display" style="margin: 0; font-size: 1.2rem; color: #111827;">${name}</h3>
+          ${canEdit ? `
+            <button onclick="editGroupName(${id})" 
+              style="background: none; border: none; color: #6b7280; cursor: pointer; padding: 4px;">
+              <i class="ri-pencil-line"></i>
+            </button>
+          ` : ''}
+        </div>
+        <p style="color: #6b7280; font-size: 0.85rem; margin-top: 4px;">
+          ${groupData.participants ? groupData.participants.length : 0} participants
+        </p>
+      </div>
+
+      <!-- Activity Log Section -->
+      <div class="detail-section">
+        <div class="detail-title"><i class="ri-time-line"></i> Activity</div>
+        <div id="group-activity" style="font-size: 0.85rem; color: #6b7280;">
+          ${groupData.createdBy ? `
+            <div style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+              <i class="ri-group-line" style="color: #10b981;"></i>
+              <strong>${groupData.creatorName || 'Someone'}</strong> created this group
+              <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 2px;">
+                ${groupData.createdAt ? new Date(groupData.createdAt).toLocaleString() : 'Recently'}
+              </div>
+            </div>
+          ` : ''}
+          ${groupData.participants && groupData.participants.length > 0 ? groupData.participants.map(p => `
+            <div style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+              <i class="ri-user-add-line" style="color: #3b82f6;"></i>
+              <strong>${p.addedBy || groupData.creatorName || 'Admin'}</strong> added 
+              <strong>${p.name}</strong>
+              <div style="font-size: 0.75rem; color: #9ca3af; margin-top: 2px;">
+                ${p.joinedAt ? new Date(p.joinedAt).toLocaleString() : 'Recently'}
+              </div>
+            </div>
+          `).join('') : ''}
+        </div>
+      </div>
+
+      <!-- Participants Section -->
+      <div class="detail-section">
+        <div class="detail-title"><i class="ri-group-line"></i> Participants (${groupData.participants ? groupData.participants.length : 0})</div>
+        <div id="group-participants">
+          ${groupData.participants && groupData.participants.length > 0 ? groupData.participants.map(p => `
+            <div style="display: flex; align-items: center; padding: 8px 0; gap: 12px;">
+              <div style="width: 36px; height: 36px; border-radius: 50%; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                display: flex; align-items: center; justify-content: center; 
+                color: white; font-weight: 600; font-size: 14px;">
+                ${p.name.charAt(0).toUpperCase()}
+              </div>
+              <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 0.9rem;">${p.name}</div>
+                <div style="fontSize: 0.75rem; color: #6b7280; text-transform: capitalize;">
+                  ${p.role || 'Member'}${p.id === groupData.createdBy ? ' • Creator' : ''}
+                </div>
+              </div>
+            </div>
+          `).join('') : '<p style="color: #9ca3af; font-size: 0.85rem;">No participants</p>'}
+        </div>
+      </div>
+
+      <!-- Starred Messages Section -->
+      <div class="detail-section">
+        <div class="detail-title"><i class="ri-star-line"></i> Starred Messages</div>
+        <div id="starred-messages" style="font-size: 0.85rem; color: #6b7280;">
+          <p style="color: #9ca3af;">No starred messages yet</p>
+        </div>
+      </div>
+
+      <!-- Media Section -->
+      <div class="detail-section">
+        <div class="detail-title"><i class="ri-image-line"></i> Media & Files</div>
+        <div id="shared-media">
+          <div class="media-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+            <div class="media-item" style="aspect-ratio: 1; background: #f3f4f6; border-radius: 8px; 
+              display: flex; align-items: center; justify-content: center; color: #9ca3af;">
+              <i class="ri-image-line" style="font-size: 24px;"></i>
+            </div>
+          </div>
+          <p style="color: #9ca3af; font-size: 0.85rem; margin-top: 12px; text-align: center;">
+            No media shared yet
+          </p>
+        </div>
+      </div>
+
+      <!-- Group Settings (for admin/creator) -->
+      ${canEdit ? `
+        <div class="detail-section">
+          <div class="detail-title"><i class="ri-settings-3-line"></i> Group Settings</div>
+          <button onclick="manageGroupSettings(${id})" 
+            style="width: 100%; padding: 12px; background: #f3f4f6; border: none; 
+            border-radius: 8px; cursor: pointer; color: #374151; font-weight: 500;">
+            <i class="ri-settings-line"></i> Manage Group
+          </button>
+        </div>
+      ` : ''}
+    `;
+  } else {
+    // DIRECT CHAT DETAILS (existing implementation)
+    pane.innerHTML = `
+      <div class="profile-card">
+        <img src="/images/avatar-placeholder.png" class="profile-lg" alt="${name}">
+        <h3 class="profile-name">${name}</h3>
+        <p class="profile-status">Online</p>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-title">Contact Information</div>
+        <div class="info-row">
+          <i class="ri-mail-line"></i>
+          <span id="details-email">${userDetails.email || '--'}</span>
+        </div>
+        <div class="info-row">
+          <i class="ri-phone-line"></i>
+          <span id="details-phone">${userDetails.phone || '--'}</span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-title">Starred Messages</div>
+        <p style="color: #9ca3af; font-size: 0.85rem;">No starred messages</p>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-title">Shared Media</div>
+        <div class="media-grid">
+          <div class="media-item"></div>
+        </div>
+      </div>
+    `;
+  }
+}
 
 // Load conversations
 async function loadConversations() {
   try {
+    console.log('DEBUG: Fetching conversations...');
     const response = await fetch('/api/messages/conversations', {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')} ` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
     const data = await response.json();
+    console.log('DEBUG: Conversations data:', data);
 
     if (data.success) {
-      const conversationList = document.querySelector('.conversations-scroll');
+      const conversationList = document.getElementById('conversation-list');
       if (!conversationList) return;
 
-      if (data.conversations.length === 0) {
+      // Ensure currentUser is defined, if not try to get it
+      if (!currentUser) {
+        try {
+          const userRes = await api.getCurrentUser();
+          if (userRes && userRes.success) currentUser = userRes.user;
+        } catch (e) { console.error('Error getting current user in loadConversations', e); }
+      }
+
+      // Filter out AI assistant conversations
+      const filteredConversations = data.conversations.filter(conv => {
+        let otherId = null;
+        if (conv.user && conv.user.id) {
+          otherId = conv.user.id;
+        } else if (conv.participants) {
+          // Safety check for currentUser
+          const myId = currentUser ? currentUser.id : null;
+          const other = conv.participants.find(p => p.id !== myId);
+          if (other) otherId = other.id;
+        }
+        // Check for both potential IDs used for AI
+        return otherId !== 'ai-assistant' && otherId !== 'ai-user';
+      });
+
+      if (filteredConversations.length === 0) {
         conversationList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No conversations yet</div>';
         return;
       }
 
-      conversationList.innerHTML = data.conversations.map(conv => {
-        // Handle both group (participants array) and direct (user object) types
+      conversationList.innerHTML = filteredConversations.map(conv => {
         let otherParticipant = null;
         let name = 'Unknown User';
+        let avatar = '/images/avatar-placeholder.png'; // Default
 
         if (conv.type === 'group') {
-          name = conv.name;
+          name = conv.name || 'Group Chat';
+          avatar = conv.avatar || '/images/group-placeholder.png';
         } else {
-          // Direct message: try conv.user first, then participants array
+          // Direct chat logic
           if (conv.user) {
             otherParticipant = conv.user;
-            name = conv.user.name;
+            name = conv.user.name || 'Unknown';
+            if (conv.user.avatar) avatar = conv.user.avatar;
           } else if (conv.participants && conv.participants.length > 0) {
-            otherParticipant = conv.participants.find(p => p.id !== currentUser.id);
-            name = otherParticipant ? otherParticipant.name : 'Unknown User';
+            const myId = currentUser ? currentUser.id : null;
+            otherParticipant = conv.participants.find(p => p.id !== myId);
+            if (otherParticipant) {
+              name = otherParticipant.name || 'Unknown';
+              if (otherParticipant.avatar) avatar = otherParticipant.avatar;
+            }
           }
         }
 
@@ -524,20 +903,48 @@ async function loadConversations() {
         const time = conv.lastMessage ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
         const unreadCount = conv.unreadCount || 0;
 
+        // Get activity status for online indicator
+        const activityStatus = conv.activityStatus || 'Never seen';
+        const isOnline = activityStatus === 'Online';
+
         return `
-            <div class="conversation-item ${unreadCount > 0 ? 'unread' : ''}" data-conversation-id="${conv.conversationId || conv.id}" data-conversation-name="${name}">
-              <div class="avatar">${name.charAt(0)}</div>
-              <div class="conversation-info">
-                <div class="conversation-header">
-                  <span class="conversation-name">${name}</span>
-                  <span class="conversation-time">${time}</span>
-                </div>
-                <div class="conversation-preview">${lastMessage}</div>
+            <div class="chat-item ${unreadCount > 0 ? 'unread' : ''}" data-conversation-id="${conv.conversationId || conv.id}" data-conversation-name="${name}" data-conversation-type="${conv.type}" data-activity-status="${activityStatus}">
+              <div class="avatar-wrapper">
+                 <img src="${avatar}" class="avatar-img" alt="${name}" onerror="this.src='/images/avatar-placeholder.png'">
+                 ${isOnline ? `<div class="status-dot status-online" style="border-color: #fff;"></div>` : ''}
               </div>
-              ${unreadCount > 0 ? `<div class="unread-badge">${unreadCount}</div>` : ''}
+              <div class="chat-info">
+                <div class="chat-name-row">
+                  <span class="chat-name">${name}</span>
+                  <span class="chat-time">${time}</span>
+                </div>
+                <div class="chat-name-row">
+                   <div class="chat-preview">${lastMessage}</div>
+                   ${unreadCount > 0 ? `<div class="unread-badge">${unreadCount}</div>` : ''}
+                </div>
+              </div>
             </div>
-          `;
+      `;
       }).join('');
+
+      // Add click listeners
+      document.querySelectorAll('.chat-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const convId = item.dataset.conversationId;
+          const name = item.dataset.conversationName;
+          const activityStatus = item.dataset.activityStatus || 'Never seen';
+
+          // Mobile check
+          const chatContainer = document.querySelector('.chat-container-modern');
+          if (chatContainer && window.innerWidth <= 768) {
+            chatContainer.classList.add('mobile-chat-active');
+          }
+
+          loadChatHistory(convId, name, activityStatus);
+        });
+      });
+    } else {
+      console.error('DEBUG: Conversations fetch failed', data);
     }
   } catch (error) {
     console.error('Error loading conversations:', error);
@@ -545,149 +952,434 @@ async function loadConversations() {
 }
 
 // Load chat history
-async function loadChatHistory(conversationId, conversationName, isNewGroup = false) {
+// Load chat history
+async function loadChatHistory(conversationId, conversationName, activityStatus = 'Never seen') {
+  window.currentConversationId = conversationId;
   const chatWindow = document.getElementById('chat-window');
-  chatWindow.innerHTML = `
-      <div class="chat-header">
-        <div class="chat-header-info">
-          <h3>${conversationName}</h3>
-        </div>
-      </div>
-      <div class="chat-messages" id="chat-messages">
-        <div style="text-align: center; padding: 20px;">Loading messages...</div>
-      </div>
-      <div class="chat-input-area">
-        <form onsubmit="sendMessage(event, '${conversationId}')" style="display: flex; gap: 10px; width: 100%;">
-          <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
-          <button type="button" class="btn btn-icon"><i class="ri-attachment-2"></i></button>
-          <button type="submit" class="btn btn-primary btn-icon"><i class="ri-send-plane-fill"></i></button>
-        </form>
-      </div>
-    `;
+
+  // Update active state in sidebar
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('active');
+    if (item.dataset.conversationId == conversationId) item.classList.add('active');
+  });
+
+  // Determine status color based on activity
+  const isOnline = activityStatus === 'Online';
+  const statusColor = isOnline ? '#10b981' : '#9ca3af';
+
+  // 1. Update Header
+  const chatHeader = document.getElementById('chat-header');
+  if (chatHeader) {
+    chatHeader.style.visibility = 'visible';
+    const nameEl = document.getElementById('chat-header-name');
+    const avatarEl = document.getElementById('chat-header-avatar');
+    const statusEl = document.getElementById('chat-header-status');
+    const statusDotEl = document.getElementById('chat-header-status-dot');
+
+    if (nameEl) nameEl.textContent = conversationName;
+    // Attempt to find conversation to get avatar? 
+    // For now, placeholder or keep existing if not changed
+    if (avatarEl) avatarEl.src = '/images/avatar-placeholder.png'; // Default
+
+    // Update status text and color dynamically
+    if (statusEl) {
+      statusEl.textContent = activityStatus;
+      statusEl.style.color = statusColor;
+    }
+
+    // Update status dot visibility
+    if (statusDotEl) {
+      if (isOnline) {
+        statusDotEl.classList.add('status-online');
+        statusDotEl.style.display = 'block';
+      } else {
+        statusDotEl.classList.remove('status-online');
+        statusDotEl.style.display = 'none';
+      }
+    }
+
+    // Ensure dropdown delete action uses correct ID
+    const deleteBtn = document.querySelector('#chat-options-menu .dropdown-item.danger');
+    if (deleteBtn) {
+      deleteBtn.setAttribute('onclick', `deleteChatConversation('${conversationId}', '${conversationName}')`);
+    }
+  }
+
+  // 2. Load Messages
+  const messagesContainer = document.getElementById('messages-container');
+  if (messagesContainer) {
+    messagesContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</div>';
+  }
 
   try {
+    console.log(`DEBUG: Loading chat history for ${conversationId}`);
     const response = await fetch(`/api/messages/conversation/${conversationId}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')} ` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    console.log('DEBUG: Chat history API status:', response.status);
+    const data = await response.json();
+
+    if (data.success && messagesContainer) {
+      messagesContainer.innerHTML = '';
+      if (data.messages.length === 0) {
+        messagesContainer.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.7;">No messages yet.</div>';
+      } else {
+        data.messages.forEach(msg => {
+          const isMe = msg.sender && (msg.sender.id === currentUser.id || msg.senderId === currentUser.id);
+
+          // Reply context
+          let replyContext = '';
+          if (msg.replyTo) {
+            const replyText = msg.replyTo.content.substring(0, 50) + (msg.replyTo.content.length > 50 ? '...' : '');
+            replyContext = `
+      <div class="reply-context" >
+                            <i class="ri-reply-line"></i>
+                            <span class="reply-sender">${msg.replyTo.sender?.name || 'User'}</span>
+                            <span class="reply-text">${replyText}</span>
+                        </div>
+      `;
+          }
+
+          messagesContainer.innerHTML += `
+      <div class="msg-wrapper ${isMe ? 'sent' : 'received'}" data-msg - id="${msg.id}" >
+        <input type="checkbox" class="msg-select-checkbox" onchange="updateSelectionCount()">
+          ${!isMe ? `<img src="${(msg.sender && msg.sender.avatar) ? msg.sender.avatar : '/images/avatar-placeholder.png'}" class="msg-avatar">` : ''}
+          <div class="msg-bubble">
+            ${msg.isStarred ? '<i class="ri-star-fill starred-indicator"></i>' : ''}
+            ${replyContext}
+            ${msg.content}
+            <span class="msg-time">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <div class="msg-actions">
+              <button class="msg-action-btn" onclick="toggleStar(${msg.id}, this)" title="Star">
+                <i class="${msg.isStarred ? 'ri-star-fill' : 'ri-star-line'}"></i>
+              </button>
+              <button class="msg-action-btn" onclick="toggleEmojiPicker(${msg.id}, this)" title="React">
+                <i class="ri-emotion-line"></i>
+              </button>
+              <button class="msg-action-btn" onclick="setReplyTo(${msg.id}, '${(msg.sender?.name || 'User').replace(/'/g, "\\'")}', '${msg.content.replace(/'/g, "\\'")}')" title="Reply">
+              <i class="ri-reply-line"></i>
+            </button>
+          </div>
+        </div>
+                  </div>
+      `;
+        });
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      }
+    }
+  } catch (e) {
+    console.error('ERROR in loadChatHistory:', e);
+    if (messagesContainer) messagesContainer.innerHTML = 'Error loading messages';
+  }
+
+  // 3. Update Details Pane - Fetch metadata for groups
+  try {
+    // Check if this is a group conversation
+    const conversationItem = document.querySelector(`.chat-item[data-conversation-id="${conversationId}"]`);
+    const isGroup = conversationItem && conversationItem.dataset.conversationType === 'group';
+
+    if (isGroup) {
+      // Fetch detailed group metadata
+      const metadataResponse = await fetch(`/api/messages/conversation/${conversationId}/metadata`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const metadataData = await metadataResponse.json();
+
+      if (metadataData.success) {
+        await updateDetailsPane(
+          conversationName,
+          conversationId,
+          {},
+          true, // isGroup
+          metadataData.conversation // groupData
+        );
+      } else {
+        // Fallback to basic details
+        await updateDetailsPane(conversationName, conversationId, {});
+      }
+    } else {
+      // Direct chat - use basic details
+      await updateDetailsPane(conversationName, conversationId, {
+        avatar: '/images/avatar-placeholder.png',
+        bio: 'User details...',
+        phone: 'N/A',
+        email: 'N/A'
+      });
+    }
+  } catch (error) {
+    console.error('ERROR updating details pane:', error);
+    // Fallback to basic details
+    await updateDetailsPane(conversationName, conversationId, {});
+  }
+
+  // 4. Show Footer
+  const footer = document.getElementById('chat-footer');
+  if (footer) footer.style.display = 'flex';
+}
+// Helper Functions for Modern Chat UI
+
+// Send message
+window.sendMessage = async function (conversationId) {
+  const input = document.getElementById('messageInput');
+  const content = input.value.trim();
+  if (!content) return;
+
+  // Optimistic UI update - show message immediately
+  const messagesContainer = document.getElementById('messages-container');
+
+  // Remove empty state if present
+  const emptyState = messagesContainer.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+
+  const tempMsgId = 'temp-' + Date.now();
+  const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // Add message to UI immediately
+  messagesContainer.innerHTML += `
+    <div class="msg-wrapper sent" data-msg-id="${tempMsgId}">
+      <input type="checkbox" class="msg-select-checkbox" onchange="updateSelectionCount()">
+      <div class="msg-bubble">
+        ${content}
+        <span class="msg-time">${timeString}</span>
+        <div class="msg-actions">
+          <button class="msg-action-btn" onclick="toggleStar('${tempMsgId}', this)" title="Star">
+            <i class="ri-star-line"></i>
+          </button>
+          <button class="msg-action-btn" onclick="toggleEmojiPicker('${tempMsgId}', this)" title="React">
+            <i class="ri-emotion-line"></i>
+          </button>
+          <button class="msg-action-btn" onclick="setReplyTo('${tempMsgId}', 'You', '${content.replace(/'/g, "\\'").substring(0, 100)}')" title="Reply">
+            <i class="ri-reply-line"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Clear input and scroll
+  input.value = '';
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  try {
+    const response = await fetch('/api/messages', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        conversationId: conversationId,
+        content: content
+      })
     });
     const data = await response.json();
 
     if (data.success) {
-      const messagesContainer = document.getElementById('chat-messages');
-      messagesContainer.innerHTML = '';
-
-      // Group messages by date
-      const groupedMessages = {};
-      data.messages.forEach(msg => {
-        const date = new Date(msg.createdAt).toLocaleDateString();
-        if (!groupedMessages[date]) groupedMessages[date] = [];
-        groupedMessages[date].push(msg);
-      });
-
-      Object.keys(groupedMessages).forEach(date => {
-        messagesContainer.innerHTML += `<div class="date-divider"><span>${date}</span></div>`;
-        groupedMessages[date].forEach(msg => {
-          const isMe = msg.senderId === currentUser.id;
-          messagesContainer.innerHTML += `
-              <div class="message ${isMe ? 'sent' : 'received'}">
-                <div class="message-content">
-                  ${msg.content}
-                  <div class="message-time">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-              </div>
-            `;
-        });
-      });
-
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      // Update temp message with real ID
+      const tempMsg = messagesContainer.querySelector(`[data-msg-id="${tempMsgId}"]`);
+      if (tempMsg && data.message) {
+        tempMsg.setAttribute('data-msg-id', data.message.id);
+      }
+    } else {
+      // If failed, remove the optimistic message
+      const tempMsg = messagesContainer.querySelector(`[data-msg-id="${tempMsgId}"]`);
+      if (tempMsg) tempMsg.remove();
+      console.error('Failed to send message:', data.message);
     }
   } catch (error) {
-    console.error('Error loading chat history:', error);
-  }
-
-  // Refresh conversation list to update unread counts
-  if (!isNewGroup) {
-    loadConversations();
+    // If error, remove the optimistic message
+    const tempMsg = messagesContainer.querySelector(`[data-msg-id="${tempMsgId}"]`);
+    if (tempMsg) tempMsg.remove();
+    console.error("Error sending message", error);
   }
 }
 
-// Send message
-window.sendMessage = async function (e, conversationId) {
-  e.preventDefault();
-  const input = document.getElementById('message-input');
-  const content = input.value.trim();
-  if (!content) return;
+window.toggleSelectionMode = function (enable) {
+  const wrappers = document.querySelectorAll('.msg-wrapper');
+  const header = document.getElementById('selection-header');
+  if (enable) {
+    document.body.classList.add('selection-active');
+    wrappers.forEach(w => w.classList.add('selection-mode'));
+    if (header) header.classList.add('active');
+    document.querySelectorAll('.btn-emoji').forEach(b => b.style.display = 'none');
+  } else {
+    document.body.classList.remove('selection-active');
+    wrappers.forEach(w => w.classList.remove('selection-mode'));
+    if (header) header.classList.remove('active');
+    document.querySelectorAll('.msg-select-checkbox').forEach(cb => cb.checked = false);
+    const countSpan = document.getElementById('selection-count');
+    if (countSpan) countSpan.textContent = '0 Selected';
+  }
+}
 
-  // Optimistic UI update
-  const messagesContainer = document.getElementById('chat-messages');
-  messagesContainer.innerHTML += `
-      <div class="message sent">
-        <div class="message-content">
-          ${content}
-          <div class="message-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+window.updateSelectionCount = function () {
+  const count = document.querySelectorAll('.msg-select-checkbox:checked').length;
+  const countSpan = document.getElementById('selection-count');
+  if (countSpan) countSpan.textContent = `${count} Selected`;
+}
+
+window.toggleSearch = function () {
+  const bar = document.getElementById('chat-search-bar');
+  if (bar) {
+    bar.classList.toggle('active');
+    if (bar.classList.contains('active')) bar.querySelector('input').focus();
+  }
+}
+
+window.searchInChat = function (query) {
+  const term = query.toLowerCase();
+  const bubbles = document.querySelectorAll('.msg-bubble');
+  bubbles.forEach(bubble => {
+    const text = bubble.textContent.toLowerCase();
+    const wrapper = bubble.closest('.msg-wrapper');
+    if (wrapper) {
+      wrapper.style.display = text.includes(term) ? 'flex' : 'none';
+    }
+  });
+}
+
+
+window.toggleChatOptions = function (event) {
+  if (event) event.stopPropagation();
+  const menu = document.getElementById('chat-options-menu');
+  if (menu) {
+    menu.classList.toggle('show');
+    const close = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.classList.remove('show');
+        document.removeEventListener('click', close);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', close), 0);
+  }
+}
+
+window.startNewConversation = function () {
+  alert("Function to start new conversation - implementing...");
+}
+
+window.openCreateGroupModal = function () {
+  alert("Function to create group - implementing...");
+}
+
+
+window.toggleDetailsPane = function () {
+  const pane = document.getElementById('chat-details-pane');
+  const chatWindow = document.getElementById('chat-window');
+  if (pane && chatWindow) {
+    pane.classList.toggle('active');
+    if (pane.classList.contains('active')) {
+      chatWindow.style.marginRight = '300px';
+      const activeItem = document.querySelector('.chat-item.active');
+      if (activeItem) {
+        const name = activeItem.dataset.conversationName;
+        pane.innerHTML = `
+      <div class="details-header" >
+                   <h3>Details</h3>
+                   <button class="btn-icon" onclick="toggleDetailsPane()"><i class="ri-close-line"></i></button>
+                </div>
+      <div class="details-content">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="/images/avatar-placeholder.png" class="details-avatar">
+            <h4>${name}</h4>
+        </div>
+        <div class="details-section">
+          <p>User details and shared media will appear here.</p>
         </div>
       </div>
     `;
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  input.value = '';
+      }
+    } else {
+      chatWindow.style.marginRight = '0';
+    }
+  }
+}
 
-  try {
-    await fetch('/api/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')} `
-      },
-      body: JSON.stringify({ conversationId, content })
-    });
-    // Reload to confirm and get any system updates
-    // loadChatHistory(conversationId, document.querySelector('.chat-header h3').textContent); 
-    // Don't reload full history to keep it smooth, maybe just append if needed or rely on socket in future
-  } catch (error) {
-    console.error('Error sending message:', error);
-    alert('Failed to send message');
+window.copySelectedMessages = function () {
+  const checked = document.querySelectorAll('.msg-select-checkbox:checked');
+  if (checked.length === 0) return alert('No messages selected');
+
+  const texts = [];
+  checked.forEach(cb => {
+    const wrapper = cb.closest('.msg-wrapper');
+    const bubble = wrapper.querySelector('.msg-bubble');
+    // Filter out time and actions
+    let text = bubble.firstChild.textContent.trim();
+    texts.push(text);
+  });
+
+  navigator.clipboard.writeText(texts.join('\n\n')).then(() => {
+    alert('Copied to clipboard');
+    toggleSelectionMode(false);
+  });
+}
+
+window.deleteSelectedMessages = function () {
+  const checked = document.querySelectorAll('.msg-select-checkbox:checked');
+  if (checked.length === 0) return alert('No messages selected');
+
+  if (!confirm(`Delete ${checked.length} messages ? `)) return;
+
+  checked.forEach(cb => {
+    const wrapper = cb.closest('.msg-wrapper');
+    wrapper.remove();
+  });
+  toggleSelectionMode(false);
+}
+
+// Mobile: Close chat and return to list
+window.closeMobileChat = function () {
+  const chatContainer = document.querySelector('.chat-container-modern');
+  if (chatContainer) {
+    chatContainer.classList.remove('mobile-chat-active');
+  }
+  // Also hide the chat window if we are not using the modern container class switching (fallback)
+  const chatWindow = document.getElementById('chat-window');
+  if (chatWindow && window.innerWidth <= 768) {
+    // logic for mobile view might rely on CSS classes on a parent
   }
 }
 
 // Show create course modal
 function showCreateCourse() {
   const modal = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <h2>Create New Course</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Create New Course</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          <form onsubmit="createCourse(event)">
+            <div class="form-group">
+              <label>Course Name</label>
+              <select id="course-name" required>
+                <option value="">Select a course</option>
+                <option value="Tableau">Tableau</option>
+                <option value="Power BI">Power BI</option>
+                <option value="SQL">SQL</option>
+                <option value="Informatica">Informatica</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="course-description" rows="3" required></textarea>
+            </div>
+            <div class="form-group">
+              <label>Duration</label>
+              <input type="text" id="course-duration" value="6 weeks" required>
+            </div>
+            <div class="form-group">
+              <label>Syllabus (optional)</label>
+              <textarea id="course-syllabus" rows="4"></textarea>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Create Course</button>
+            </div>
+          </form>
         </div>
-        <form onsubmit="createCourse(event)">
-          <div class="form-group">
-            <label>Course Name</label>
-            <select id="course-name" required>
-              <option value="">Select a course</option>
-              <option value="Tableau">Tableau</option>
-              <option value="Power BI">Power BI</option>
-              <option value="SQL">SQL</option>
-              <option value="Informatica">Informatica</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea id="course-description" rows="3" required></textarea>
-          </div>
-          <div class="form-group">
-            <label>Duration</label>
-            <input type="text" id="course-duration" value="6 weeks" required>
-          </div>
-          <div class="form-group">
-            <label>Syllabus (optional)</label>
-            <textarea id="course-syllabus" rows="4"></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
-            <button type="submit" class="btn btn-primary">Create Course</button>
-          </div>
-        </form>
-      </div>
     </div>
-  `;
+      `;
 
   document.getElementById('modal-container').innerHTML = modal;
 }
@@ -722,44 +1414,44 @@ function showCreateAssignment() {
   }
 
   const modal = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <h2>Create Assignment</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Create Assignment</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          <form onsubmit="createAssignment(event)">
+            <div class="form-group">
+              <label>Course</label>
+              <select id="assignment-course" required>
+                <option value="">Select a course</option>
+                ${courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" id="assignment-title" required>
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="assignment-description" rows="4" required></textarea>
+            </div>
+            <div class="form-group">
+              <label>Due Date</label>
+              <input type="datetime-local" id="assignment-due" required>
+            </div>
+            <div class="form-group">
+              <label>Max Score</label>
+              <input type="number" id="assignment-score" value="100" required>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Create Assignment</button>
+            </div>
+          </form>
         </div>
-        <form onsubmit="createAssignment(event)">
-          <div class="form-group">
-            <label>Course</label>
-            <select id="assignment-course" required>
-              <option value="">Select a course</option>
-              ${courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Title</label>
-            <input type="text" id="assignment-title" required>
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea id="assignment-description" rows="4" required></textarea>
-          </div>
-          <div class="form-group">
-            <label>Due Date</label>
-            <input type="datetime-local" id="assignment-due" required>
-          </div>
-          <div class="form-group">
-            <label>Max Score</label>
-            <input type="number" id="assignment-score" value="100" required>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
-            <button type="submit" class="btn btn-primary">Create Assignment</button>
-          </div>
-        </form>
-      </div>
     </div>
-  `;
+      `;
 
   document.getElementById('modal-container').innerHTML = modal;
 }
@@ -796,64 +1488,64 @@ function showScheduleSession() {
   }
 
   const modal = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <h2>Schedule Session</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
-        </div>
-        <form onsubmit="createSession(event)">
-          <div class="form-group">
-            <label>Course</label>
-            <select id="session-course" required>
-              <option value="">Select a course</option>
-              ${courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
-            </select>
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Schedule Session</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
           </div>
-          <div class="form-group">
-            <label>Title</label>
-            <input type="text" id="session-title" placeholder="e.g., Week 1: Introduction" required>
-          </div>
-          <div class="form-group">
-            <label>Description</label>
-            <textarea id="session-description" rows="3"></textarea>
-          </div>
-          <div class="form-group">
-            <label>Scheduled Date & Time (Start)</label>
-            <input type="datetime-local" id="session-time" required>
-          </div>
-          
-          <div class="form-row" style="display: flex; gap: 15px;">
-            <div class="form-group" style="flex: 1;">
-              <label>Recurrence</label>
-              <select id="session-recurrence" onchange="toggleEndDate(this.value)">
-                <option value="none">None (One-time)</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
+          <form onsubmit="createSession(event)">
+            <div class="form-group">
+              <label>Course</label>
+              <select id="session-course" required>
+                <option value="">Select a course</option>
+                ${courses.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
               </select>
             </div>
-            <div class="form-group" id="end-date-group" style="flex: 1; display: none;">
-              <label>End Date</label>
-              <input type="date" id="session-end-date">
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" id="session-title" placeholder="e.g., Week 1: Introduction" required>
             </div>
-          </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="session-description" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Scheduled Date & Time (Start)</label>
+              <input type="datetime-local" id="session-time" required>
+            </div>
 
-          <div class="form-group">
-            <label>Duration (minutes)</label>
-            <input type="number" id="session-duration" value="60" required>
-          </div>
-          <div class="form-group">
-            <label>Meeting Link (optional)</label>
-            <input type="url" id="session-link" placeholder="https://zoom.us/j/...">
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
-            <button type="submit" class="btn btn-primary">Schedule Session</button>
-          </div>
-        </form>
-      </div>
+            <div class="form-row" style="display: flex; gap: 15px;">
+              <div class="form-group" style="flex: 1;">
+                <label>Recurrence</label>
+                <select id="session-recurrence" onchange="toggleEndDate(this.value)">
+                  <option value="none">None (One-time)</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </div>
+              <div class="form-group" id="end-date-group" style="flex: 1; display: none;">
+                <label>End Date</label>
+                <input type="date" id="session-end-date">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Duration (minutes)</label>
+              <input type="number" id="session-duration" value="60" required>
+            </div>
+            <div class="form-group">
+              <label>Meeting Link (optional)</label>
+              <input type="url" id="session-link" placeholder="https://zoom.us/j/...">
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Schedule Session</button>
+            </div>
+          </form>
+        </div>
     </div>
-  `;
+      `;
 
   document.getElementById('modal-container').innerHTML = modal;
 }
@@ -904,13 +1596,13 @@ function viewSubmissions(assignmentId) {
   if (!assignment) return;
 
   const modal = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 800px;">
-        <div class="modal-header">
-          <h2>Submissions: ${assignment.title}</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
-        </div>
-        ${assignment.submissions && assignment.submissions.length ?
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 800px;">
+          <div class="modal-header">
+            <h2>Submissions: ${assignment.title}</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          ${assignment.submissions && assignment.submissions.length ?
       assignment.submissions.map(sub => `
             <div class="card mb-3">
               <h4>Student Submission</h4>
@@ -936,9 +1628,9 @@ function viewSubmissions(assignmentId) {
           `).join('') :
       '<p class="text-muted">No submissions yet.</p>'
     }
-      </div>
+        </div>
     </div>
-  `;
+      `;
 
   document.getElementById('modal-container').innerHTML = modal;
 }
@@ -947,8 +1639,8 @@ function viewSubmissions(assignmentId) {
 async function gradeSubmission(e, assignmentId, submissionId) {
   e.preventDefault();
 
-  const grade = parseInt(document.getElementById(`grade-${submissionId}`).value);
-  const feedback = document.getElementById(`feedback-${submissionId}`).value;
+  const grade = parseInt(document.getElementById(`grade - ${submissionId} `).value);
+  const feedback = document.getElementById(`feedback - ${submissionId} `).value;
 
   try {
     await api.gradeAssignment(assignmentId, submissionId, grade, feedback);
@@ -969,16 +1661,16 @@ function messageStudent(studentId, studentName) {
 // Show compose message modal
 function showComposeMessage(receiverId = '', receiverName = '') {
   const modal = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <h2>Compose Message</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
-        </div>
-        <form onsubmit="sendMessage(event)">
-          <div class="form-group">
-            <label>To</label>
-            ${receiverId ?
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Compose Message</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          <form onsubmit="sendMessage(event)">
+            <div class="form-group">
+              <label>To</label>
+              ${receiverId ?
       `<input type="text" value="${receiverName}" readonly>
                <input type="hidden" id="message-receiver" value="${receiverId}">` :
       `<select id="message-receiver" required>
@@ -986,29 +1678,29 @@ function showComposeMessage(receiverId = '', receiverName = '') {
                  ${allStudents.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
                </select>`
     }
-          </div>
-          <div class="form-group">
-            <label>Subject</label>
-            <input type="text" id="message-subject" placeholder="Enter subject" required>
-          </div>
-          <div class="form-group">
-            <label>Message</label>
-            <textarea id="message-content" rows="6" placeholder="Type your message here..." required></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
-            <button type="submit" class="btn btn-primary">Send Message</button>
-          </div>
-        </form>
-      </div>
+            </div>
+            <div class="form-group">
+              <label>Subject</label>
+              <input type="text" id="message-subject" placeholder="Enter subject" required>
+            </div>
+            <div class="form-group">
+              <label>Message</label>
+              <textarea id="message-content" rows="6" placeholder="Type your message here..." required></textarea>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal(event)">Cancel</button>
+              <button type="submit" class="btn btn-primary">Send Message</button>
+            </div>
+          </form>
+        </div>
     </div>
-  `;
+      `;
 
   document.getElementById('modal-container').innerHTML = modal;
 }
 
-// Send message
-async function sendMessage(e) {
+// Send message (old modal-based function - kept for backwards compatibility)
+async function sendModalMessage(e) {
   e.preventDefault();
 
   const receiver = document.getElementById('message-receiver').value;
@@ -1088,23 +1780,23 @@ window.startNewConversation = async function () {
   }
 
   const modal = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <h2>Start New Conversation</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Start New Conversation</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          <div class="form-group">
+            <label>Select User</label>
+            <select id="new-chat-user" class="form-control" style="width: 100%; padding: 10px; margin-bottom: 15px;">
+              <option value="">Choose a user...</option>
+              ${optionsHtml}
+            </select>
+          </div>
+          <button class="btn btn-primary btn-block" onclick="initiateChat()">Start Chat</button>
         </div>
-        <div class="form-group">
-          <label>Select User</label>
-          <select id="new-chat-user" class="form-control" style="width: 100%; padding: 10px; margin-bottom: 15px;">
-            <option value="">Choose a user...</option>
-            ${optionsHtml}
-          </select>
-        </div>
-        <button class="btn btn-primary btn-block" onclick="initiateChat()">Start Chat</button>
-      </div>
     </div>
-  `;
+      `;
 
   document.getElementById('modal-container').innerHTML = modal;
 }
@@ -1120,8 +1812,8 @@ window.initiateChat = async function () {
 
   try {
     // Fetch or create conversation to get the correct conversation ID
-    const response = await fetch(`/api/messages/direct/${userId}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    const response = await fetch(`/ api / messages / direct / ${userId} `, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')} ` }
     });
     const data = await response.json();
 
@@ -1137,6 +1829,7 @@ window.initiateChat = async function () {
 }
 
 window.openCreateGroupModal = async function () {
+  console.log('DEBUG: openCreateGroupModal called');
   // Ensure users are loaded
   if (!allUsers || allUsers.length === 0) {
     try {
@@ -1155,39 +1848,113 @@ window.openCreateGroupModal = async function () {
   }
 
   const modalHtml = `
-    <div class="modal" id="create-group-modal" style="display: flex;">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Create Group Chat</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
-        </div>
-        <div class="modal-body">
-          <form id="create-group-form" onsubmit="createGroup(event)">
-            <div class="form-group">
-              <label>Group Name</label>
-              <input type="text" id="group-name" required placeholder="e.g., Project Team A">
-            </div>
-            <div class="form-group">
-              <label>Select Participants</label>
-              <div class="user-selection-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;">
-                ${allUsers.filter(u => u.id !== currentUser.id).map(user => `
-                  <div class="user-checkbox-item" style="margin-bottom: 5px;">
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                      <input type="checkbox" name="participants" value="${user.id}" style="margin-right: 10px;">
-                      <span>${user.name} (${user.role})</span>
-                    </label>
-                  </div>
-                `).join('')}
+      <div class="modal" id="create-group-modal" style="display: flex;">
+        <div class="modal-content" style="max-width: 600px; width: 90%;">
+          <div class="modal-header">
+            <h2><i class="ri-group-line"></i> Create Group Chat</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          <div class="modal-body">
+            <form id="create-group-form" onsubmit="createGroup(event)">
+              <div class="form-group">
+                <label style="font-weight: 600; margin-bottom: 8px; display: block;">Group Name</label>
+                <input type="text" id="group-name" required placeholder="e.g., Project Team A" 
+                  style="width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
               </div>
-            </div>
-            <button type="submit" class="btn btn-primary btn-block">Create Group</button>
-          </form>
+              
+              <div class="form-group" style="margin-top: 24px;">
+                <label style="font-weight: 600; margin-bottom: 12px; display: block;">Select Participants</label>
+                
+                <!-- Search Box -->
+                <div style="margin-bottom: 12px;">
+                  <input type="text" id="participant-search" placeholder="Search participants..." 
+                    onkeyup="filterParticipants()"
+                    style="width: 100%; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                </div>
+                
+                <!-- Selected Count -->
+                <div id="selected-count" style="margin-bottom: 12px; font-size: 13px; color: #6b7280;">
+                  <i class="ri-user-add-line"></i> <span id="count-text">0 participants selected</span>
+                </div>
+                
+                <!-- Participants List -->
+                <div class="participants-grid" id="participants-list" 
+                  style="max-height: 300px; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 8px;">
+                  ${allUsers.filter(u => u.id !== currentUser.id).map(user => `
+                    <label class="participant-card" data-user-name="${user.name.toLowerCase()}" data-user-role="${user.role.toLowerCase()}"
+                      style="display: flex; align-items: center; padding: 12px; border: 2px solid #e5e7eb; 
+                      border-radius: 10px; cursor: pointer; transition: all 0.2s; background: #fff;">
+                      <input type="checkbox" name="participants" value="${user.id}" 
+                        onchange="updateSelectedCount()"
+                        style="width: 18px; height: 18px; margin-right: 12px; cursor: pointer; accent-color: #006064;">
+                      
+                      <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; 
+                        font-size: 16px; margin-right: 12px; flex-shrink: 0;">
+                        ${user.name.charAt(0).toUpperCase()}
+                      </div>
+                      
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 600; font-size: 14px; color: #111827; margin-bottom: 2px;">
+                          ${user.name}
+                        </div>
+                        <div style="font-size: 12px; color: #6b7280; text-transform: capitalize;">
+                          <i class="ri-${user.role === 'student' ? 'user' : user.role === 'professor' ? 'presentation' : 'shield'}-line"></i>
+                          ${user.role}
+                        </div>
+                      </div>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+              
+              <button type="submit" class="btn btn-primary btn-block" 
+                style="margin-top: 20px; width: 100%; padding: 14px; background: #006064; color: white; 
+                border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;">
+                <i class="ri-group-line"></i> Create Group
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-    </div>
-  `;
+      
+      <style>
+        .participant-card:hover {
+          border-color: #006064 !important;
+          background: #f0fdfa !important;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(0, 96, 100, 0.1);
+        }
+        
+        .participant-card input:checked + div + div {
+          color: #006064;
+        }
+        
+        .participant-card input:checked {
+          transform: scale(1.1);
+        }
+        
+        .participants-grid::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .participants-grid::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 10px;
+        }
+        
+        .participants-grid::-webkit-scrollbar-thumb {
+          background: #006064;
+          border-radius: 10px;
+        }
+      </style>
+      `;
 
   document.getElementById('modal-container').innerHTML = modalHtml;
+  console.log('DEBUG: Modal HTML injected');
+
+  // Initialize count
+  updateSelectedCount();
 }
 
 window.createGroup = async function (event) {
@@ -1226,6 +1993,28 @@ window.createGroup = async function (event) {
   }
 }
 
+// Helper function to filter participants
+window.filterParticipants = function () {
+  const searchTerm = document.getElementById('participant-search').value.toLowerCase();
+  const cards = document.querySelectorAll('.participant-card');
+
+  cards.forEach(card => {
+    const userName = card.getAttribute('data-user-name');
+    const userRole = card.getAttribute('data-user-role');
+    const matches = userName.includes(searchTerm) || userRole.includes(searchTerm);
+    card.style.display = matches ? 'flex' : 'none';
+  });
+}
+
+// Helper function to update selected count
+window.updateSelectedCount = function () {
+  const checked = document.querySelectorAll('input[name="participants"]:checked').length;
+  const countText = document.getElementById('count-text');
+  if (countText) {
+    countText.textContent = `${checked} participant${checked !== 1 ? 's' : ''} selected`;
+  }
+}
+
 // Placeholder functions
 function editCourse(id) {
   alert('Edit course functionality - To be implemented');
@@ -1247,7 +2036,7 @@ window.startNewConversation = async function () {
   if (!allUsers || allUsers.length === 0) {
     try {
       const response = await fetch('/api/users', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')} ` }
       });
       const data = await response.json();
       if (data.success) {
@@ -1268,25 +2057,25 @@ window.startNewConversation = async function () {
   const students = users.filter(u => u.role === 'student');
 
   const modal = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-header">
-          <h2>Start New Conversation</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Start New Conversation</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          <div class="form-group">
+            <label>Select User</label>
+            <select id="new-chat-user" class="form-control" style="width: 100%; padding: 10px; margin-bottom: 15px;">
+              <option value="">Choose a user...</option>
+              ${professors.length > 0 ? `<optgroup label="Professors">${professors.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</optgroup>` : ''}
+              ${admins.length > 0 ? `<optgroup label="Admins">${admins.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}</optgroup>` : ''}
+              ${students.length > 0 ? `<optgroup label="Students">${students.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</optgroup>` : ''}
+            </select>
+          </div>
+          <button class="btn btn-primary btn-block" onclick="initiateChat()">Start Chat</button>
         </div>
-        <div class="form-group">
-          <label>Select User</label>
-          <select id="new-chat-user" class="form-control" style="width: 100%; padding: 10px; margin-bottom: 15px;">
-            <option value="">Choose a user...</option>
-            ${professors.length > 0 ? `<optgroup label="Professors">${professors.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</optgroup>` : ''}
-            ${admins.length > 0 ? `<optgroup label="Admins">${admins.map(a => `<option value="${a.id}">${a.name}</option>`).join('')}</optgroup>` : ''}
-            ${students.length > 0 ? `<optgroup label="Students">${students.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}</optgroup>` : ''}
-          </select>
-        </div>
-        <button class="btn btn-primary btn-block" onclick="initiateChat()">Start Chat</button>
-      </div>
     </div>
-  `;
+      `;
 
   document.getElementById('modal-container').innerHTML = modal;
 }
@@ -1302,8 +2091,8 @@ window.initiateChat = async function () {
 
   try {
     // Fetch or create conversation to get the correct conversation ID
-    const response = await fetch(`/api/messages/direct/${userId}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    const response = await fetch(`/ api / messages / direct / ${userId} `, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')} ` }
     });
     const data = await response.json();
 
@@ -1322,15 +2111,15 @@ let currentQuizQuestions = [];
 
 function showCreateAIQuiz() {
   const modalHtml = `
-    <div class="modal" onclick="closeModal(event)">
-      <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 800px;">
-        <div class="modal-header">
-          <h2>Create AI Quiz</h2>
-          <button class="modal-close" onclick="closeModal(event)">×</button>
-        </div>
-        <div class="modal-body">
-          <!-- Step 1: Generate -->
-          <div id="quiz-step-1">
+      <div class="modal" onclick="closeModal(event)" >
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 800px;">
+          <div class="modal-header">
+            <h2>Create AI Quiz</h2>
+            <button class="modal-close" onclick="closeModal(event)">×</button>
+          </div>
+          <div class="modal-body">
+            <!-- Step 1: Generate -->
+            <div id="quiz-step-1">
               <div class="form-group">
                 <label>Select Course</label>
                 <select id="quiz-course" class="form-control">
@@ -1352,61 +2141,61 @@ function showCreateAIQuiz() {
               <button class="btn btn-primary btn-block" onclick="generateQuizQuestions()" id="generate-btn">
                 <i class="ri-magic-line"></i> Generate Questions
               </button>
-          </div>
+            </div>
 
-          <!-- Step 2: Edit & Settings (Hidden initially) -->
-          <div id="quiz-step-2" style="display: none;">
+            <!-- Step 2: Edit & Settings (Hidden initially) -->
+            <div id="quiz-step-2" style="display: none;">
               <div class="tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #eee;">
-                  <button class="btn btn-outline-primary active" onclick="switchQuizTab('questions')" style="flex: 1; padding: 12px; font-weight: 600;">Questions</button>
-                  <button class="btn btn-outline-secondary" onclick="switchQuizTab('settings')" style="flex: 1; padding: 12px; font-weight: 600;">Settings</button>
+                <button class="btn btn-outline-primary active" onclick="switchQuizTab('questions')" style="flex: 1; padding: 12px; font-weight: 600;">Questions</button>
+                <button class="btn btn-outline-secondary" onclick="switchQuizTab('settings')" style="flex: 1; padding: 12px; font-weight: 600;">Settings</button>
               </div>
 
               <!-- Questions Tab -->
               <div id="quiz-tab-questions">
-                  <div id="questions-container" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
-                  <button class="btn btn-sm btn-secondary" onclick="addManualQuestion()">+ Add Question</button>
+                <div id="questions-container" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
+                <button class="btn btn-sm btn-secondary" onclick="addManualQuestion()">+ Add Question</button>
               </div>
 
               <!-- Settings Tab -->
               <div id="quiz-tab-settings" style="display: none;">
-                  <div class="form-group">
-                    <label>Time Limit (minutes)</label>
-                    <input type="number" id="quiz-time" class="form-control" value="30">
-                  </div>
-                  <div class="form-group">
-                    <label>Passing Cutoff (%)</label>
-                    <input type="number" id="quiz-cutoff" class="form-control" value="0" min="0" max="100">
+                <div class="form-group">
+                  <label>Time Limit (minutes)</label>
+                  <input type="number" id="quiz-time" class="form-control" value="30">
+                </div>
+                <div class="form-group">
+                  <label>Passing Cutoff (%)</label>
+                  <input type="number" id="quiz-cutoff" class="form-control" value="0" min="0" max="100">
                     <small class="text-muted">0 for no cutoff</small>
+                </div>
+                <div class="form-group">
+                  <label>Stop Condition</label>
+                  <div style="display: flex; gap: 20px; align-items: center; margin-top: 10px; background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <label style="flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; margin: 0; padding: 5px; color: var(--text-primary);">
+                      <input type="radio" name="stop-condition" value="manual" checked onclick="toggleScheduleInput(false)" style="width: 20px; height: 20px; margin: 0;">
+                        Manually Stop
+                    </label>
+                    <div style="width: 1px; height: 24px; background: var(--border-color);"></div>
+                    <label style="flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; margin: 0; padding: 5px; color: var(--text-primary);">
+                      <input type="radio" name="stop-condition" value="scheduled" onclick="toggleScheduleInput(true)" style="width: 20px; height: 20px; margin: 0;">
+                        Schedule Close Time
+                    </label>
                   </div>
-                  <div class="form-group">
-                    <label>Stop Condition</label>
-                    <div style="display: flex; gap: 20px; align-items: center; margin-top: 10px; background: var(--bg-tertiary); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
-                        <label style="flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; margin: 0; padding: 5px; color: var(--text-primary);">
-                            <input type="radio" name="stop-condition" value="manual" checked onclick="toggleScheduleInput(false)" style="width: 20px; height: 20px; margin: 0;"> 
-                            Manually Stop
-                        </label>
-                        <div style="width: 1px; height: 24px; background: var(--border-color);"></div>
-                        <label style="flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500; margin: 0; padding: 5px; color: var(--text-primary);">
-                            <input type="radio" name="stop-condition" value="scheduled" onclick="toggleScheduleInput(true)" style="width: 20px; height: 20px; margin: 0;"> 
-                            Schedule Close Time
-                        </label>
-                    </div>
-                  </div>
-                  <div class="form-group" id="schedule-input" style="display: none;">
-                    <label>Close Quiz At</label>
-                    <input type="datetime-local" id="quiz-close-date" class="form-control">
-                  </div>
+                </div>
+                <div class="form-group" id="schedule-input" style="display: none;">
+                  <label>Close Quiz At</label>
+                  <input type="datetime-local" id="quiz-close-date" class="form-control">
+                </div>
               </div>
 
               <div class="mt-4" style="display: flex; gap: 10px;">
-                  <button class="btn btn-secondary" onclick="showQuizStep1()">Back</button>
-                  <button class="btn btn-success" onclick="saveAIQuiz()">Save & Publish Quiz</button>
+                <button class="btn btn-secondary" onclick="showQuizStep1()">Back</button>
+                <button class="btn btn-success" onclick="saveAIQuiz()">Save & Publish Quiz</button>
               </div>
+            </div>
           </div>
         </div>
-      </div>
     </div>
-  `;
+      `;
   document.getElementById('modal-container').innerHTML = modalHtml;
 }
 
@@ -1443,7 +2232,7 @@ async function generateQuizQuestions() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('token')} `
       },
       body: JSON.stringify({ topic, count })
     });
@@ -1468,7 +2257,7 @@ async function generateQuizQuestions() {
 function renderEditableQuestions() {
   const container = document.getElementById('questions-container');
   container.innerHTML = currentQuizQuestions.map((q, i) => `
-        <div class="card mb-3" style="padding: 15px; border: 1px solid #eee;">
+      <div class="card mb-3" style = "padding: 15px; border: 1px solid #eee;" >
             <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                 <strong>Question ${i + 1}</strong>
                 <button class="btn btn-sm btn-danger" onclick="deleteQuestion(${i})">Delete</button>
@@ -1534,7 +2323,7 @@ async function saveAIQuiz() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('token')} `
       },
       body: JSON.stringify({
         courseId,
@@ -1587,7 +2376,7 @@ async function loadQuizzes() {
       if (data.success) {
         allQuizzes = [...allQuizzes, ...data.quizzes.map(q => ({ ...q, courseName: course.name }))];
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('ERROR loading quizzes for course:', course.name, course.id, e); }
   }
 
   const list = document.getElementById('quizzes-list');
@@ -1603,7 +2392,7 @@ async function loadQuizzes() {
       : '<span class="badge badge-success">Active</span>';
 
     return `
-      <div class="card mb-3" style="padding: 15px; display: flex; justify-content: space-between; align-items: center; opacity: ${isClosed ? 0.7 : 1};">
+      <div class="card mb-3" style = "padding: 15px; display: flex; justify-content: space-between; align-items: center; opacity: ${isClosed ? 0.7 : 1};" >
           <div>
               <div style="display: flex; align-items: center; gap: 10px;">
                   <h4 style="margin: 0;">${q.title}</h4>
@@ -1635,7 +2424,7 @@ async function loadQuizzes() {
               </button>
           </div>
       </div>
-  `}).join('');
+      `}).join('');
 }
 
 // Updated Stop Quiz Function
@@ -1643,7 +2432,7 @@ async function stopQuiz(id) {
   if (!confirm('Are you sure you want to stop this quiz? Students will no longer be able to take it.')) return;
 
   try {
-    const res = await fetch(`/api/quizzes/${id}/stop`, {
+    const res = await fetch(`/ api / quizzes / ${id}/stop`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
@@ -1779,7 +2568,7 @@ async function editQuiz(id) {
       }, 100);
     }
   } catch (e) {
-    console.error(e);
+    console.error('ERROR in editQuiz:', e);
     alert('Failed to load quiz details');
   }
 }
@@ -1888,3 +2677,290 @@ async function viewQuizResults(quizId, title) {
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(loadQuizzes, 1000); // Small delay to ensure courses are loaded
 });
+
+// --- Modern Chat Helpers (Appended) ---
+
+window.setReplyTo = function (msgId, senderName, content) {
+  const inputWrapper = document.querySelector('.input-wrapper');
+  const existing = inputWrapper.querySelector('.reply-preview');
+  if (existing) existing.remove();
+
+  const preview = document.createElement('div');
+  preview.className = 'reply-preview';
+  preview.innerHTML = `
+        <div style="font-size: 12px; color: var(--primary-color);">Replying to ${senderName}</div>
+        <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${content}</div>
+        <i class="ri-close-line" onclick="this.parentElement.remove(); window.currentReplyTo = null;" style="position: absolute; right: 5px; top: 5px; cursor: pointer;"></i>
+    `;
+  inputWrapper.insertBefore(preview, document.getElementById('messageInput'));
+  window.currentReplyTo = msgId;
+  document.getElementById('messageInput').focus();
+}
+
+window.toggleStar = function (msgId, btn) {
+  const icon = btn.querySelector('i');
+  const isStarred = icon.classList.contains('ri-star-fill');
+  // Optimistic toggle
+  if (isStarred) {
+    icon.className = 'ri-star-line';
+  } else {
+    icon.className = 'ri-star-fill';
+  }
+  // In real app, send API request
+  console.log('Toggle star for', msgId);
+}
+
+window.handleFileUpload = function (input) {
+  if (input.files && input.files[0]) {
+    alert("File selected: " + input.files[0].name + " (Upload feature pending backend)");
+    // Reset to allow re-selecting same file
+    input.value = '';
+  }
+}
+
+window.toggleEmojiPicker = function (messageId, button) {
+  // Close any existing picker
+  const existingPicker = document.querySelector('.emoji-picker');
+  if (existingPicker) existingPicker.remove();
+
+  // Create emoji picker
+  const picker = document.createElement('div');
+  picker.className = 'emoji-picker';
+  picker.style.cssText = 'position: absolute; bottom: 100%; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); z-index: 50; display: flex; gap: 8px;';
+
+  const emojis = ['❤️', '👍', '😊', '😂', '😮', '😢', '🔥', '🎉'];
+
+  picker.innerHTML = emojis.map(emoji =>
+    `<button class="emoji-btn" style="background:none; border:none; cursor:pointer; font-size: 1.25rem; padding: 4px; border-radius: 4px; transition: background 0.2s;" onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='transparent'" onclick="addReaction(${messageId}, '${emoji}'); event.stopPropagation();">${emoji}</button>`
+  ).join('');
+
+  if (button.parentElement) button.parentElement.style.position = 'relative';
+  button.parentElement.appendChild(picker);
+
+  // Close picker when clicking outside
+  setTimeout(() => {
+    const closeHandler = (e) => {
+      if (!picker.contains(e.target) && e.target !== button && !button.contains(e.target)) {
+        picker.remove();
+        document.removeEventListener('click', closeHandler);
+      }
+    };
+    document.addEventListener('click', closeHandler);
+  }, 10);
+};
+
+window.addReaction = function (messageId, emoji) {
+  const wrapper = document.querySelector(`.msg-wrapper[data-msg-id="${messageId}"]`);
+  if (!wrapper) return;
+
+  const bubble = wrapper.querySelector('.msg-bubble');
+  let reactions = bubble.querySelector('.msg-reactions');
+
+  if (!reactions) {
+    reactions = document.createElement('div');
+    reactions.className = 'msg-reactions';
+    reactions.style.cssText = 'display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;';
+    bubble.appendChild(reactions);
+  }
+
+  // Check if emoji already exists
+  const existingReaction = Array.from(reactions.children).find(r => r.textContent.startsWith(emoji));
+  if (existingReaction) {
+    // Increment count
+    const countSpan = existingReaction.querySelector('.reaction-count');
+    if (countSpan) {
+      const currentCount = parseInt(countSpan.textContent) || 1;
+      countSpan.textContent = currentCount + 1;
+    }
+  } else {
+    // Add new reaction
+    const reaction = document.createElement('span');
+    reaction.className = 'reaction-item';
+    reaction.style.cssText = 'background: rgba(0,0,0,0.05); border-radius: 12px; padding: 2px 8px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border: 1px solid transparent;';
+    reaction.innerHTML = `${emoji} <span class="reaction-count" style="font-size: 0.75rem; opacity: 0.8;">1</span>`;
+    reactions.appendChild(reaction);
+  }
+
+  // Close emoji picker
+  const picker = document.querySelector('.emoji-picker');
+  if (picker) picker.remove();
+};
+
+// --- Missing Chat Modals and Actions ---
+
+window.startNewConversation = function () {
+  // specific to professor: use allStudents
+  const users = (typeof allStudents !== 'undefined' ? allStudents : []);
+
+  // Simple list for now
+  let optionsHtml = '<option value="">Choose a student...</option>';
+  if (users.length > 0) {
+    optionsHtml += '<optgroup label="Students">';
+    users.forEach(u => {
+      optionsHtml += `<option value="${u.id}">${u.name}</option>`;
+    });
+    optionsHtml += '</optgroup>';
+  } else {
+    optionsHtml += '<option disabled>No students found</option>';
+  }
+
+  const modal = `
+    <div class="modal" onclick="closeModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h2>Start New Conversation</h2>
+          <button class="modal-close" onclick="closeModal(event)">×</button>
+        </div>
+        <div class="form-group">
+          <label>Select Student</label>
+          <select id="new-chat-user" class="form-control" style="width: 100%; padding: 10px; margin-bottom: 15px;">
+            ${optionsHtml}
+          </select>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="initiateChat()">Start Chat</button>
+      </div>
+    </div>
+    `;
+  document.getElementById('modal-container').innerHTML = modal;
+}
+
+window.initiateChat = async function () {
+  const select = document.getElementById('new-chat-user');
+  const userId = select.value;
+  const userName = select.options[select.selectedIndex].text;
+
+  if (!userId) return;
+  closeModal();
+
+  try {
+    const response = await fetch(`/api/messages/direct/${userId}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      loadChatHistory(data.conversation.id, userName);
+    } else {
+      alert('Failed to start conversation: ' + (data.message || 'Unknown error'));
+    }
+  } catch (error) {
+    console.error('Error initiating chat:', error);
+    alert('Failed to start conversation');
+  }
+}
+
+
+window.deleteChatConversation = async function (conversationId, name) {
+  if (!confirm(`Are you sure you want to delete the conversation with ${name}?`)) return;
+
+  // Optimistic remove
+  document.getElementById('chat-window').innerHTML = '<div class="empty-state"><h3>Select a conversation</h3></div>';
+  loadConversations(); // refresh list
+
+  // In real app, API call: DELETE /api/messages/conversation/:id
+  console.log('Delete conversation', conversationId);
+}
+
+window.copySelectedMessages = function () {
+  const checked = document.querySelectorAll('.msg-select-checkbox:checked');
+  if (checked.length === 0) return alert('No messages selected');
+
+  const texts = [];
+  checked.forEach(cb => {
+    const wrapper = cb.closest('.msg-wrapper');
+    const bubble = wrapper.querySelector('.msg-bubble');
+    texts.push(bubble.innerText.replace(/\d{1,2}:\d{2}\s?[AP]M/i, '').trim());
+  });
+
+  navigator.clipboard.writeText(texts.join('\n\n')).then(() => {
+    alert('Copied to clipboard');
+    toggleSelectionMode(false);
+  }).catch(err => console.error('Failed to copy', err));
+}
+
+window.deleteSelectedMessages = async function () {
+  const checked = document.querySelectorAll('.msg-select-checkbox:checked');
+  if (checked.length === 0) return alert('No messages selected');
+
+  if (!confirm(`Delete ${checked.length} messages?`)) return;
+
+  checked.forEach(cb => {
+    const wrapper = cb.closest('.msg-wrapper');
+    wrapper.remove();
+  });
+
+  toggleSelectionMode(false);
+}
+
+
+
+
+
+function createVisualConsole() {
+  const consoleDiv = document.createElement('div');
+  consoleDiv.id = 'visual-console';
+  consoleDiv.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 400px;
+        height: 300px;
+        background: rgba(0, 0, 0, 0.9);
+        color: #00ff00;
+        font-family: monospace;
+        font-size: 12px;
+        padding: 10px;
+        z-index: 9999;
+        overflow-y: auto;
+        border-top-left-radius: 8px;
+        pointer-events: auto;
+    `;
+
+  const header = document.createElement('div');
+  header.innerHTML = '<strong>Debug Console</strong> <button onclick="document.getElementById(\'visual-console\').remove()" style="float: right; background: red; color: white; border: none; cursor: pointer;">X</button>';
+  header.style.borderBottom = '1px solid #333';
+  header.style.marginBottom = '5px';
+  consoleDiv.appendChild(header);
+
+  const logContainer = document.createElement('div');
+  logContainer.id = 'visual-console-logs';
+  consoleDiv.appendChild(logContainer);
+
+  document.body.appendChild(consoleDiv);
+
+  // Override console methods to print to screen
+  const originalLog = console.log;
+  const originalError = console.error;
+
+  function appendToVisual(type, args) {
+    const msg = args.map(arg => {
+      try {
+        if (typeof arg === 'object') return JSON.stringify(arg);
+        return String(arg);
+      } catch (e) { return '[Circular]'; }
+    }).join(' ');
+
+    const line = document.createElement('div');
+    line.style.borderBottom = '1px solid #222';
+    line.style.padding = '2px 0';
+    if (type === 'error') line.style.color = '#ff6b6b';
+
+    const time = new Date().toLocaleTimeString();
+    line.textContent = `[${time}] ${msg}`;
+    logContainer.appendChild(line);
+    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+  }
+
+  console.log = function (...args) {
+    originalLog.apply(console, args);
+    appendToVisual('log', args);
+  };
+
+  console.error = function (...args) {
+    originalError.apply(console, args);
+    appendToVisual('error', args);
+  };
+
+  console.log("Visual Console Initialized");
+}
+

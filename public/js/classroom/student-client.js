@@ -1,6 +1,5 @@
 /**
- * Student Classroom Client
- * Simplified interface for students with permission-based controls
+ * Student Classroom Client (P2P Mesh)
  */
 
 class StudentClassroom {
@@ -8,17 +7,18 @@ class StudentClassroom {
         this.classroomId = classroomId;
         this.token = token;
         this.socket = null;
-        this.device = null;
-        this.sendTransport = null;
-        this.recvTransport = null;
-        this.producers = new Map();
-        this.consumers = new Map();
+        this.peers = new Map(); // userId -> RTCPeerConnection
+        this.localStream = null;
+        this.localScreenStream = null;
         this.participants = new Map();
         this.isConnected = false;
-        this.permissions = {
-            canSpeak: false,
-            canVideo: false,
-            canScreenShare: false
+
+        // ICE Servers (STUN/TURN) - Using Google's public STUN for now
+        this.iceServers = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
         };
     }
 
@@ -27,8 +27,7 @@ class StudentClassroom {
             await this.connectSocket();
             await this.joinClassroom();
             this.setupEventListeners();
-            await this.initMediasoup();
-            this.updateUI();
+            this.setupUI();
         } catch (error) {
             console.error('Initialization error:', error);
             this.showError('Failed to initialize classroom: ' + error.message);
@@ -57,13 +56,16 @@ class StudentClassroom {
             this.socket.on('disconnect', () => {
                 this.isConnected = false;
                 this.updateConnectionStatus('Disconnected');
+                // Clean up peers
+                this.peers.forEach(peer => peer.close());
+                this.peers.clear();
             });
         });
     }
 
     async joinClassroom() {
         return new Promise((resolve, reject) => {
-            this.socket.emit('join-classroom', { classroomId: this.classroomId }, (response) => {
+            this.socket.emit('join-classroom', { classroomId: this.classroomId }, async (response) => {
                 if (response.error) {
                     reject(new Error(response.error));
                     return;
@@ -72,365 +74,280 @@ class StudentClassroom {
                 console.log('Joined classroom:', response);
                 document.getElementById('classroomTitle').textContent = response.classroom.title;
 
-                // Add existing participants
-                response.participants.forEach(p => {
-                    this.addParticipantToList(p.userId, p.name, p.role);
-                });
+                // Existing participants
+                if (response.participants) {
+                    for (const p of response.participants) {
+                        this.addParticipantToList(p.userId, p.name, p.role);
+                        // Initiate P2P connection to existing peers
+                        await this.createPeerConnection(p.userId, true);
+                    }
+                }
 
                 resolve(response);
             });
         });
     }
 
-    async initMediasoup() {
-        const { rtpCapabilities } = await this.socketRequest('getRouterRtpCapabilities', {
-            classroomId: this.classroomId
-        });
+    async createPeerConnection(targetUserId, initiator = false) {
+        if (this.peers.has(targetUserId)) return this.peers.get(targetUserId);
 
-        this.device = new mediasoupClient.Device();
-        await this.device.load({ routerRtpCapabilities: rtpCapabilities });
+        console.log(`Creating PeerConnection to ${targetUserId} (Initiator: ${initiator})`);
 
-        await this.createSendTransport();
-        await this.createReceiveTransport();
-    }
+        const peer = new RTCPeerConnection(this.iceServers);
+        this.peers.set(targetUserId, peer);
 
-    async createSendTransport() {
-        const transportParams = await this.socketRequest('createTransport', {
-            classroomId: this.classroomId,
-            direction: 'send'
-        });
+        // Add local tracks if any
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => {
+                peer.addTrack(track, this.localStream);
+            });
+        }
+        if (this.localScreenStream) {
+            this.localScreenStream.getTracks().forEach(track => {
+                peer.addTrack(track, this.localScreenStream);
+            });
+        }
 
-        this.sendTransport = this.device.createSendTransport(transportParams.params);
-
-        this.sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
-            try {
-                await this.socketRequest('connectTransport', {
-                    transportId: this.sendTransport.id,
-                    dtlsParameters
+        // Handle ICE candidates
+        peer.onicecandidate = (event) => {
+            if (event.candidate) {
+                this.socket.emit('signal', {
+                    to: this.participants.get(targetUserId)?.socketId, // We need socket ID
+                    signal: { type: 'candidate', candidate: event.candidate }
                 });
-                callback();
-            } catch (error) {
-                errback(error);
             }
-        });
+        };
 
-        this.sendTransport.on('produce', async ({ kind, rtpParameters, appData }, callback, errback) => {
+        // Handle incoming tracks
+        peer.ontrack = (event) => {
+            console.log(`Received track from ${targetUserId}:`, event.streams[0]);
+            this.displayRemoteVideo(targetUserId, event.streams[0]);
+        };
+
+        // Create offer if initiator
+        if (initiator) {
             try {
-                const { id } = await this.socketRequest('produce', {
-                    transportId: this.sendTransport.id,
-                    kind,
-                    rtpParameters,
-                    appData
-                });
-                callback({ id });
-            } catch (error) {
-                errback(error);
+                const offer = await peer.createOffer();
+                await peer.setLocalDescription(offer);
+
+                // We need to resolve socketId first. In a real app we'd map userId->socketId better.
+                // For now, let's assume the server handles 'to: userId' mapping or we stored it.
+                // My socket server expects 'to: socketId'.
+                // Refactor: Let's store socketId in participants map.
+                const targetSocketId = this.participants.get(targetUserId)?.socketId;
+                if (targetSocketId) {
+                    this.socket.emit('signal', {
+                        to: targetSocketId,
+                        signal: { type: 'offer', sdp: peer.localDescription }
+                    });
+                }
+            } catch (err) {
+                console.error('Error creating offer:', err);
             }
-        });
+        }
+
+        return peer;
     }
 
-    async createReceiveTransport() {
-        const transportParams = await this.socketRequest('createTransport', {
-            classroomId: this.classroomId,
-            direction: 'receive'
-        });
+    async handleSignal(userId, signal) {
+        if (!this.peers.has(userId)) {
+            // Incoming offer from a user we haven't connected to yet
+            // Add them to list if not exists (should be added by user-connected event usually)
+            // But user-connected might come after signal? No, signal comes after.
+            // If we don't have a peer, create one (not initiator)
+            await this.createPeerConnection(userId, false);
+        }
 
-        this.recvTransport = this.device.createRecvTransport(transportParams.params);
+        const peer = this.peers.get(userId);
 
-        this.recvTransport.on('connect', async ({ dtlsParameters }, callback, errback) => {
-            try {
-                await this.socketRequest('connectTransport', {
-                    transportId: this.recvTransport.id,
-                    dtlsParameters
+        if (signal.type === 'offer') {
+            await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+            const answer = await peer.createAnswer();
+            await peer.setLocalDescription(answer);
+
+            const targetSocketId = this.participants.get(userId)?.socketId;
+            if (targetSocketId) {
+                this.socket.emit('signal', {
+                    to: targetSocketId,
+                    signal: { type: 'answer', sdp: peer.localDescription }
                 });
-                callback();
-            } catch (error) {
-                errback(error);
             }
-        });
-    }
-
-    async requestMicrophone() {
-        // Students don't auto-start, they request permission
-        alert('Microphone request sent to teacher (Feature in development)');
-        // In production, this would send a permission request to teacher
-    }
-
-    async requestCamera() {
-        alert('Camera request sent to teacher (Feature in development)');
-    }
-
-    async requestScreenShare() {
-        try {
-            await this.socketRequest('request-screen-share', {});
-            alert('Screen share request sent to teacher. Please wait for approval.');
-        } catch (error) {
-            this.showError('Failed to request screen share: ' + error.message);
+        } else if (signal.type === 'answer') {
+            await peer.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        } else if (signal.type === 'candidate') {
+            await peer.addIceCandidate(new RTCIceCandidate(signal.candidate));
         }
-    }
-
-    async startScreenShare() {
-        try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: { width: 1920, height: 1080 }
-            });
-            const track = stream.getVideoTracks()[0];
-
-            track.onended = () => this.stopScreenShare();
-
-            const producer = await this.sendTransport.produce({
-                track,
-                appData: { source: 'screen' }
-            });
-
-            this.producers.set('screen', producer);
-            document.getElementById('requestScreenShareBtn').textContent = '🖥️ Stop Sharing';
-        } catch (error) {
-            console.error('Screen share error:', error);
-        }
-    }
-
-    async stopScreenShare() {
-        const producer = this.producers.get('screen');
-        if (producer) {
-            await this.socketRequest('closeProducer', {
-                producerId: producer.id,
-                source: 'screen'
-            });
-            producer.close();
-            this.producers.delete('screen');
-            document.getElementById('requestScreenShareBtn').textContent = '🖥️ Request Screen Share';
-        }
-    }
-
-    async consumeMedia(producerId, userId, kind, source) {
-        try {
-            const consumerParams = await this.socketRequest('consume', {
-                transportId: this.recvTransport.id,
-                producerId,
-                rtpCapabilities: this.device.rtpCapabilities
-            });
-
-            const consumer = await this.recvTransport.consume(consumerParams.params);
-            this.consumers.set(consumer.id, consumer);
-
-            await this.socketRequest('resumeConsumer', { consumerId: consumer.id });
-
-            const stream = new MediaStream([consumer.track]);
-            this.displayRemoteVideo(userId, stream, source === 'screen');
-        } catch (error) {
-            console.error('Consume error:', error);
-        }
-    }
-
-    displayRemoteVideo(userId, stream, isScreen = false) {
-        const videoGrid = document.getElementById('videoGrid');
-        let videoCard = document.getElementById(`video-${userId}`);
-
-        if (!videoCard) {
-            videoCard = document.createElement('div');
-            videoCard.id = `video-${userId}`;
-            videoCard.className = `video-card ${isScreen ? 'screen-share' : ''}`;
-
-            const participant = this.participants.get(userId);
-            const name = participant ? participant.name : 'Unknown';
-
-            videoCard.innerHTML = `
-                <video autoplay playsinline></video>
-                <div class="video-overlay">
-                    <span class="participant-name">${name}${isScreen ? ' (Screen)' : ''}</span>
-                    <div class="video-icons"></div>
-                </div>
-            `;
-            videoGrid.appendChild(videoCard);
-        }
-
-        const video = videoCard.querySelector('video');
-        video.srcObject = stream;
-
-        if (isScreen) {
-            videoCard.classList.add('screen-share');
-        }
-    }
-
-    addParticipantToList(userId, name, role) {
-        this.participants.set(userId, { userId, name, role });
-
-        const listDiv = document.getElementById('participantsList');
-        const item = document.createElement('div');
-        item.className = 'participant-item';
-        item.id = `participant-${userId}`;
-        item.innerHTML = `
-            <div class="participant-info">
-                <div class="participant-avatar">${name.charAt(0).toUpperCase()}</div>
-                <div>
-                    <div>${name}</div>
-                    <small style="opacity: 0.7;">${role}</small>
-                </div>
-            </div>
-        `;
-        listDiv.appendChild(item);
-    }
-
-    removeParticipant(userId) {
-        this.participants.delete(userId);
-
-        const videoCard = document.getElementById(`video-${userId}`);
-        if (videoCard) videoCard.remove();
-
-        const participantItem = document.getElementById(`participant-${userId}`);
-        if (participantItem) participantItem.remove();
-    }
-
-    raiseHand() {
-        this.socket.emit('raise-hand', {});
-        alert('Hand raised! Teacher has been notified.');
-    }
-
-    leaveClassroom() {
-        if (!confirm('Are you sure you want to leave the classroom?')) return;
-
-        if (this.socket) {
-            this.socket.disconnect();
-        }
-
-        window.location.href = '/student/dashboard.html';
     }
 
     setupEventListeners() {
         // Socket events
-        this.socket.on('user-joined', ({ userId, name, role }) => {
-            console.log('User joined:', name);
-            this.addParticipantToList(userId, name, role);
+        this.socket.on('user-connected', ({ userId, name, role, socketId }) => {
+            console.log('User connected:', name);
+            this.addParticipantToList(userId, name, role, socketId);
+            // Wait for them to call us (if we follow strict initiator logic), or just create peer
+            // In Mesh, usually the new joiner initiates to everyone. 
+            // So existing users just wait.
+            // But let's support bi-directional check.
         });
 
-        this.socket.on('user-left', ({ userId }) => {
-            console.log('User left:', userId);
+        this.socket.on('user-disconnected', ({ userId }) => {
+            console.log('User disconnected:', userId);
             this.removeParticipant(userId);
         });
 
-        this.socket.on('new-producer', ({ producerId, userId, kind, source }) => {
-            console.log('New producer:', userId, kind, source);
-            this.consumeMedia(producerId, userId, kind, source);
-        });
-
-        this.socket.on('screen-share-approved', () => {
-            alert('Screen share approved! Starting...');
-            this.startScreenShare();
-        });
-
-        this.socket.on('screen-share-rejected', () => {
-            alert('Screen share request was rejected by the teacher.');
-        });
-
-        this.socket.on('remote-control-request', ({ teacherId, teacherName }) => {
-            this.showRemoteControlRequest(teacherId, teacherName);
-        });
-
-        this.socket.on('remote-mouse-move', (data) => {
-            this.handleRemoteMouseMove(data);
-        });
-
-        this.socket.on('remote-mouse-click', (data) => {
-            this.handleRemoteClick(data);
-        });
-
-        this.socket.on('remote-keyboard', (data) => {
-            this.handleRemoteKeyboard(data);
-        });
-
-        this.socket.on('remote-control-stopped', () => {
-            this.hideRemoteControlNotice();
+        this.socket.on('signal', ({ from, userId, signal }) => {
+            // 'from' is socketId, 'userId' is user ID.
+            // We might need to ensure participant exists?
+            if (!this.participants.has(userId)) {
+                // If checking participants, we might need to add them temporarily or fetch info?
+                // For simplified P2P, user-connected should have fired.
+            }
+            this.handleSignal(userId, signal);
         });
 
         this.socket.on('chat-message', ({ userId, userName, message, timestamp }) => {
             this.addChatMessage(userName, message, timestamp);
         });
 
-        this.socket.on('kicked-from-classroom', ({ reason }) => {
-            alert('You have been removed from the classroom: ' + reason);
-            window.location.href = '/student/dashboard.html';
-        });
-
-        // UI event listeners
-        document.getElementById('raiseHandBtn').addEventListener('click', () => this.raiseHand());
-        document.getElementById('requestMicBtn').addEventListener('click', () => this.requestMicrophone());
-        document.getElementById('requestCameraBtn').addEventListener('click', () => this.requestCamera());
-        document.getElementById('requestScreenShareBtn').addEventListener('click', () => this.requestScreenShare());
-        document.getElementById('leaveClassBtn').addEventListener('click', () => this.leaveClassroom());
-
+        // Chat UI
         document.getElementById('sendChatBtn').addEventListener('click', () => this.sendChat());
         document.getElementById('chatInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.sendChat();
         });
+
+        // Buttons
+        document.getElementById('requestMicBtn').addEventListener('click', () => this.toggleMic());
+        document.getElementById('requestCameraBtn').addEventListener('click', () => this.toggleCamera());
+        document.getElementById('leaveClassBtn').addEventListener('click', () => this.leaveClassroom());
     }
 
-    showRemoteControlRequest(teacherId, teacherName) {
-        const modal = document.getElementById('remoteControlRequestModal');
-        document.getElementById('teacherName').textContent = teacherName;
-        modal.classList.add('active');
-
-        document.getElementById('approveRemoteControlBtn').onclick = () => {
-            this.socket.emit('approve-remote-control', { teacherId });
-            modal.classList.remove('active');
-            this.showRemoteControlNotice();
-        };
-
-        document.getElementById('denyRemoteControlBtn').onclick = () => {
-            this.socket.emit('reject-remote-control', { teacherId });
-            modal.classList.remove('active');
-        };
+    setupUI() {
+        // Update button labels for self-control
+        document.getElementById('requestMicBtn').innerHTML = '🎤 <span>Unmute Mic</span>';
+        document.getElementById('requestCameraBtn').innerHTML = '📹 <span>Turn On Camera</span>';
     }
 
-    showRemoteControlNotice() {
-        const notice = document.getElementById('remoteControlActiveNotice');
-        notice.style.display = 'flex';
+    async toggleMic() {
+        if (!this.localStream) await this.startLocalStream();
 
-        document.getElementById('stopRemoteControlStudentBtn').onclick = () => {
-            this.socket.emit('stop-remote-control', {});
-            this.hideRemoteControlNotice();
-        };
-    }
-
-    hideRemoteControlNotice() {
-        document.getElementById('remoteControlActiveNotice').style.display = 'none';
-        document.getElementById('remoteCursor').classList.remove('active');
-    }
-
-    handleRemoteMouseMove({ x, y }) {
-        const cursor = document.getElementById('remoteCursor');
-        // Scale normalized coordinates to window dimensions
-        cursor.style.left = (x * window.innerWidth) + 'px';
-        cursor.style.top = (y * window.innerHeight) + 'px';
-        cursor.classList.add('active');
-    }
-
-    handleRemoteClick({ button, type }) {
-        // Simulate click at current cursor position
-        const cursor = document.getElementById('remoteCursor');
-        const rect = cursor.getBoundingClientRect();
-        const element = document.elementFromPoint(rect.left, rect.top);
-
-        if (element) {
-            element.click();
+        const audioTrack = this.localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            const btn = document.getElementById('requestMicBtn');
+            btn.innerHTML = audioTrack.enabled ? '🎤 <span>Mute Mic</span>' : '🎤 <span>Unmute Mic</span>';
+            btn.classList.toggle('active', audioTrack.enabled);
         }
     }
 
-    handleRemoteKeyboard({ key, type }) {
-        // Simulate keyboard input on focused element
-        const focused = document.activeElement;
-        if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
-            if (type === 'keydown' && key.length === 1) {
-                focused.value += key;
-            }
+    async toggleCamera() {
+        if (!this.localStream) await this.startLocalStream();
+
+        const videoTrack = this.localStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            const btn = document.getElementById('requestCameraBtn');
+            btn.innerHTML = videoTrack.enabled ? '📹 <span>Turn Off Camera</span>' : '📹 <span>Turn On Camera</span>';
+            btn.classList.toggle('active', videoTrack.enabled);
         }
     }
 
+    async startLocalStream() {
+        try {
+            this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+
+            // Mute by default? Let's keep them unmuted but respecting initial toggle state if complex.
+            // For now, let's just default to enabled=true (active).
+
+            // Add tracks to all existing peers
+            this.localStream.getTracks().forEach(track => {
+                this.peers.forEach(peer => {
+                    peer.addTrack(track, this.localStream);
+                });
+            });
+
+            // Display local video
+            this.displayLocalVideo(this.localStream);
+
+            document.getElementById('requestMicBtn').innerHTML = '🎤 <span>Mute Mic</span>';
+            document.getElementById('requestMicBtn').classList.add('active');
+            document.getElementById('requestCameraBtn').innerHTML = '📹 <span>Turn Off Camera</span>';
+            document.getElementById('requestCameraBtn').classList.add('active');
+
+        } catch (err) {
+            console.error('Error accessing media', err);
+            alert('Could not access microphone/camera');
+        }
+    }
+
+    displayLocalVideo(stream) {
+        // Same as remote but 'self'
+        this.displayRemoteVideo('self', stream);
+    }
+
+    displayRemoteVideo(userId, stream) {
+        const videoGrid = document.getElementById('videoGrid');
+        let videoCard = document.getElementById(`video-${userId}`);
+
+        if (!videoCard) {
+            videoCard = document.createElement('div');
+            videoCard.id = `video-${userId}`;
+            videoCard.className = 'video-card';
+
+            const name = userId === 'self' ? 'You' : (this.participants.get(userId)?.name || 'Unknown');
+
+            videoCard.innerHTML = `
+                <video autoplay playsinline ${userId === 'self' ? 'muted' : ''}></video>
+                <div class="video-overlay">
+                    <span class="participant-name">${name}</span>
+                </div>
+            `;
+            videoGrid.appendChild(videoCard);
+        }
+
+        const video = videoCard.querySelector('video');
+        if (video.srcObject !== stream) {
+            video.srcObject = stream;
+        }
+    }
+
+    addParticipantToList(userId, name, role, socketId) {
+        this.participants.set(userId, { userId, name, role, socketId });
+        // ... (UI logic from before) ...
+        const listDiv = document.getElementById('participantsList');
+        if (!document.getElementById(`participant-${userId}`)) {
+            const item = document.createElement('div');
+            item.className = 'participant-item';
+            item.id = `participant-${userId}`;
+            item.innerHTML = `
+                <div class="participant-info">
+                    <div class="participant-avatar">${name.charAt(0).toUpperCase()}</div>
+                    <div>
+                        <div>${name}</div>
+                        <small style="opacity: 0.7;">${role}</small>
+                    </div>
+                </div>
+             `;
+            listDiv.appendChild(item);
+        }
+    }
+
+    removeParticipant(userId) {
+        if (this.peers.has(userId)) {
+            this.peers.get(userId).close();
+            this.peers.delete(userId);
+        }
+        this.participants.delete(userId);
+        const videoCard = document.getElementById(`video-${userId}`);
+        if (videoCard) videoCard.remove();
+        const listItem = document.getElementById(`participant-${userId}`);
+        if (listItem) listItem.remove();
+    }
+
+    // ... Copy Chat Logic from before ...
     sendChat() {
         const input = document.getElementById('chatInput');
         const message = input.value.trim();
         if (!message) return;
-
         this.socket.emit('chat-message', { message });
         input.value = '';
     }
@@ -452,40 +369,25 @@ class StudentClassroom {
         document.getElementById('connectionStatus').textContent = status;
     }
 
-    updateUI() {
-        // Additional UI updates can be added here
+    leaveClassroom() {
+        if (this.socket) this.socket.disconnect();
+        window.location.href = '/student/dashboard.html';
     }
 
-    showError(message) {
-        alert(message);
-    }
-
-    socketRequest(event, data) {
-        return new Promise((resolve, reject) => {
-            this.socket.emit(event, data, (response) => {
-                if (response.error) {
-                    reject(new Error(response.error));
-                } else {
-                    resolve(response);
-                }
-            });
-        });
-    }
+    showError(msg) { alert(msg); }
 }
 
-// Initialize on page load
+// Init logic
 let classroom;
-
 window.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const classroomId = urlParams.get('id');
-
     if (!classroomId) {
-        alert('No classroom ID provided');
         window.location.href = '/student/dashboard.html';
         return;
     }
 
+    // Fetch token first
     try {
         const response = await fetch(`/api/classroom/${classroomId}/join`, {
             method: 'POST',
@@ -494,19 +396,13 @@ window.addEventListener('DOMContentLoaded', async () => {
                 'Content-Type': 'application/json'
             }
         });
-
         const data = await response.json();
-
-        if (!data.success) {
-            throw new Error(data.message || 'Failed to join classroom');
-        }
+        if (!data.success) throw new Error(data.message);
 
         classroom = new StudentClassroom(classroomId, data.token);
         await classroom.init();
-
-    } catch (error) {
-        console.error('Failed to initialize:', error);
-        alert('Failed to join classroom: ' + error.message);
+    } catch (e) {
+        alert(e.message);
         window.location.href = '/student/dashboard.html';
     }
 });
