@@ -1132,11 +1132,11 @@ async function renderMessages() {
                   <!-- Settings -->
                   <div class="detail-block">
                       <h4 class="detail-block-title">Settings</h4>
-                      <div class="setting-row">
-                          <div class="setting-label"><i class="ri-notification-3-line"></i> Notification</div>
-                          <div class="toggle-switch-ios active"></div>
+                      <div class="setting-row" id="notification-toggle-row" style="cursor: pointer;">
+                          <div class="setting-label"><i class="ri-notification-3-line"></i> Notifications</div>
+                          <div class="toggle-switch-ios active" id="notification-toggle"></div>
                       </div>
-                      <div class="setting-row">
+                      <div class="setting-row" id="starred-messages-row" style="cursor: pointer;">
                           <div class="setting-label"><i class="ri-star-line"></i> Starred Messages</div>
                           <i class="ri-arrow-right-s-line" style="color: var(--chat-text-muted);"></i>
                       </div>
@@ -1148,12 +1148,8 @@ async function renderMessages() {
                           <h4 class="detail-block-title" style="margin:0;">Media and Files</h4>
                           <i class="ri-arrow-right-s-line" style="color: var(--chat-text-muted);"></i>
                       </div>
-                      <div class="media-grid">
-                          <div class="media-thumb"></div>
-                          <div class="media-thumb"></div>
-                          <div class="media-thumb" style="position: relative;">
-                              <div style="position: absolute; inset:0; background: rgba(0,0,0,0.5); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">+5</div>
-                          </div>
+                      <div class="media-grid" id="recent-media-grid">
+                          <p style="text-align: center; color: var(--text-muted); padding: 20px;">Loading...</p>
                       </div>
                   </div>
               </div>
@@ -1655,63 +1651,140 @@ function updateDetailsPane(name, id, userDetails = {}) {
 
   console.log('🔍 updateDetailsPane called with:', { name, id, userDetails });
 
-  const bio = userDetails.bio || "N/A";
-  const phone = userDetails.phone || "N/A";
-  const email = userDetails.email || "N/A";
+  const bio = userDetails.bio || "Hey there! I'm using this chat app.";
+  const phone = userDetails.phone || "Not provided";
+  const email = userDetails.email || "Not provided";
   const avatar = userDetails.avatar || "/images/avatar-placeholder.png";
 
   pane.innerHTML = `
-        <div style="position: relative;">
-            <i class="ri-close-line details-close-btn" onclick="toggleDetailsPane()"></i>
-            
-            <div class="profile-card">
-                <img src="${avatar}" class="profile-lg" alt="${name}">
-                <div class="profile-name">${name}</div>
-                <div class="profile-status">Online</div>
+        <div style="position: relative; height: 100%; overflow-y: auto;">
+            <!-- Close Button -->
+            <button onclick="toggleDetailsPane()" style="position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.05); border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.1)'" onmouseout="this.style.background='rgba(0,0,0,0.05)'">
+                <i class="ri-close-line" style="font-size: 20px;"></i>
+            </button>
+           
+            <!-- Profile Card -->
+            <div style="text-align: center; padding: 30px 20px 25px;">
+                <div style="width: 90px; height: 90px; border-radius: 50%; margin: 0 auto 15px; overflow: hidden; border: 3px solid var(--primary-color); box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                    <img src="${avatar}" style="width: 100%; height: 100%; object-fit: cover;" alt="${name}">
+                </div>
+                <h3 style="margin: 0 0 5px; font-size: 1.3rem; font-weight: 600; color: var(--text-primary);">${name}</h3>
+                <div style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; background: rgba(16, 185, 129, 0.1); border-radius: 20px; color: #10b981; font-size: 0.85rem; font-weight: 500;">
+                    <i class="ri-checkbox-blank-circle-fill" style="font-size: 8px;"></i> Online
+                </div>
             </div>
 
-            <div class="detail-section">
-                <div class="detail-title">About</div>
-                <div class="info-item" style="margin-bottom: 15px;">
-                    <i class="ri-user-line"></i>
-                    <span style="font-weight: 600;">${name}</span>
+            <!-- About Section -->
+            <div style="background: var(--bg-secondary, #f8f9fa); margin: 0 15px 15px; padding: 20px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                    <i class="ri-information-line" style="color: var(--primary-color); font-size: 18px;"></i>
+                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-secondary);">ABOUT</h4>
                 </div>
-                <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px;">
-                    ${bio}
+                <p style="margin: 0 0 15px; font-size: 0.95rem; line-height: 1.6; color: var(--text-primary); font-style: italic;">
+                    "${bio}"
                 </p>
-                
-                <div class="info-item">
-                    <i class="ri-phone-line"></i>
-                    <span>${phone}</span>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(0,0,0,0.06);">
+                    <i class="ri-phone-line" style="color: var(--primary-color); font-size: 16px;"></i>
+                    <span style="font-size: 0.9rem; color: var(--text-secondary);">${phone}</span>
                 </div>
-                <div class="info-item">
-                     <i class="ri-mail-line"></i>
-                    <span style="font-size: 0.9rem;">${email}</span>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0;">
+                    <i class="ri-mail-line" style="color: var(--primary-color); font-size: 16px;"></i>
+                    <span style="font-size: 0.9rem; color: var(--text-secondary); word-break: break-all;">${email}</span>
                 </div>
             </div>
 
-            <div class="detail-section">
-                <div class="detail-title">Settings</div>
-                <div class="setting-item">
-                    <span>Notification</span>
-                    <div class="toggle-switch active" onclick="this.classList.toggle('active')"></div>
+            <!-- Settings Section -->
+            <div style="margin: 0 15px 15px; padding: 20px; background: var(--bg-secondary, #f8f9fa); border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                    <i class="ri-settings-3-line" style="color: var(--primary-color); font-size: 18px;"></i>
+                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-secondary);">SETTINGS</h4>
                 </div>
-                <div class="setting-item">
-                    <span>Starred Messages</span>
-                    <i class="ri-arrow-right-s-line" style="color: var(--text-muted);"></i>
+                
+                <!-- Notifications Toggle -->
+                <div id="notification-setting" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: white; border-radius: 12px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
+                            <i class="ri-notification-3-line" style="color: white; font-size: 18px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-primary);">Notifications</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted);">Message alerts</div>
+                        </div>
+                    </div>
+                    <div class="toggle-switch-ios active" id="notification-toggle"></div>
+                </div>
+
+                <!-- Starred Messages -->
+                <div id="starred-setting" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: white; border-radius: 12px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); display: flex; align-items: center; justify-content: center;">
+                            <i class="ri-star-line" style="color: white; font-size: 18px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.95rem; color: var(--text-primary);">Starred Messages</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted);">View saved messages</div>
+                        </div>
+                    </div>
+                    <i class="ri-arrow-right-s-line" style="color: var(--text-muted); font-size: 20px;"></i>
                 </div>
             </div>
             
-             <div class="detail-section">
-                <div class="detail-title">Recent Media</div>
-                 <div class="media-grid">
-                     <div class="media-item"></div>
-                     <div class="media-item"></div>
-                     <div class="media-item"></div>
-                 </div>
+            <!-- Recent Media Section -->
+            <div style="margin: 0 15px 20px; padding: 20px; background: var(--bg-secondary, #f8f9fa); border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                    <i class="ri-image-line" style="color: var(--primary-color); font-size: 18px;"></i>
+                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-secondary);">RECENT MEDIA</h4>
+                </div>
+                <div id="recent-media-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; min-height: 100px;">
+                    <p style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 30px 10px; margin: 0; font-size: 0.9rem;">
+                        <i class="ri-image-add-line" style="font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.3;"></i>
+                        No media shared yet
+                    </p>
+                </div>
             </div>
         </div>
     `;
+
+  // Attach event listeners AFTER HTML is inserted
+  setTimeout(() => {
+    // Notification toggle
+    const notifSetting = document.getElementById('notification-setting');
+    if (notifSetting) {
+      notifSetting.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleConversationNotifications();
+      });
+      notifSetting.addEventListener('mouseenter', function () {
+        this.style.transform = 'translateY(-2px)';
+        this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+      });
+      notifSetting.addEventListener('mouseleave', function () {
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+      });
+    }
+
+    // Starred messages
+    const starredSetting = document.getElementById('starred-setting');
+    if (starredSetting) {
+      starredSetting.addEventListener('click', function (e) {
+        e.stopPropagation();
+        showStarredMessages();
+      });
+      starredSetting.addEventListener('mouseenter', function () {
+        this.style.transform = 'translateY(-2px)';
+        this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+      });
+      starredSetting.addEventListener('mouseleave', function () {
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+      });
+    }
+
+    // Load notification state and recent media
+    loadNotificationState();
+    loadRecentMedia();
+  }, 100);
 }
 
 // Send message
@@ -1792,6 +1865,8 @@ let replyToMessage = null;
 
 // Toggle star status of a message
 window.toggleStar = async function (messageId, button) {
+  if (!messageId) return;
+
   try {
     const response = await fetch(`/api/messages/${messageId}/star`, {
       method: 'POST',
@@ -1804,32 +1879,34 @@ window.toggleStar = async function (messageId, button) {
     const data = await response.json();
 
     if (data.success) {
-      // Update button icon
       const icon = button.querySelector('i');
-      if (data.isStarred) {
-        icon.className = 'ri-star-fill';
-        // Add star indicator to bubble if not already there
-        const wrapper = button.closest('.msg-wrapper');
-        const bubble = wrapper.querySelector('.msg-bubble');
-        if (!bubble.querySelector('.starred-indicator')) {
-          bubble.insertAdjacentHTML('afterbegin', '<i class="ri-star-fill starred-indicator"></i>');
-        }
+      const isStarred = data.isStarred;
+
+      // Update UI
+      if (isStarred) {
+        icon.classList.remove('ri-star-line');
+        icon.classList.add('ri-star-fill');
+        icon.style.color = '#fbbf24';
+        window.notify?.success('Message starred');
       } else {
-        icon.className = 'ri-star-line';
-        // Remove star indicator from bubble
-        const wrapper = button.closest('.msg-wrapper');
-        const bubble = wrapper.querySelector('.msg-bubble');
-        const indicator = bubble.querySelector('.starred-indicator');
-        if (indicator) indicator.remove();
+        icon.classList.remove('ri-star-fill');
+        icon.classList.add('ri-star-line');
+        icon.style.color = '';
+        window.notify?.success('Star removed');
       }
 
-      if (window.notify) {
-        window.notify.success(data.isStarred ? 'Message starred' : 'Star removed');
+      // Update local messages array
+      const messageIndex = messages.findIndex(m => m.id === messageId);
+      if (messageIndex !== -1) {
+        messages[messageIndex].isStarred = isStarred;
+        console.log('⭐ Updated message', messageId, 'isStarred to:', isStarred);
       }
+    } else {
+      window.notify?.error(data.message || 'Failed to toggle star');
     }
   } catch (error) {
     console.error('Error toggling star:', error);
-    if (window.notify) window.notify.error('Failed to update star');
+    window.notify?.error('Failed to update star status');
   }
 };
 
@@ -2711,3 +2788,165 @@ window.handlePasswordChange = async function (e) {
     window.notify.error('An error occurred');
   }
 }
+
+// ==================== CHAT DETAILS FEATURES ====================
+
+// Show Starred Messages Modal
+window.showStarredMessages = function () {
+  if (!window.currentConversationId) {
+    window.notify?.warning('Please select a conversation first');
+    return;
+  }
+
+  // Filter by BOTH isStarred AND current conversationId
+  const starredMsgs = messages.filter(m =>
+    m.isStarred && m.conversationId === window.currentConversationId
+  );
+
+  console.log('⭐ Starred messages for conversation', window.currentConversationId, ':', starredMsgs.length);
+
+  if (starredMsgs.length === 0) {
+    window.notify?.info('No starred messages in this conversation');
+    return;
+  }
+
+  const modalHtml = `
+    <div class="modal" id="starred-messages-modal" style="display: flex;">
+      <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+          <h2><i class="ri-star-fill" style="color: #fbbf24;"></i> Starred Messages</h2>
+          <button class="modal-close" onclick="closeModal('starred-messages-modal')">×</button>
+        </div>
+        <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+          ${starredMsgs.map(msg => `
+            <div class="starred-msg-item" onclick="jumpToMessage('${msg.id}')" style="padding: 15px; border-bottom: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; margin-bottom: 10px; background: var(--bg-secondary);">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <strong style="color: var(--primary-color);">${msg.sender?.name || 'User'}</strong>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">${new Date(msg.createdAt).toLocaleString()}</span>
+              </div>
+              <p style="margin: 0; color: var(--text-primary); word-wrap: break-word;">${msg.content}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('modal-container').innerHTML = modalHtml;
+};
+
+// Jump to message in chat
+window.jumpToMessage = function (messageId) {
+  closeModal('starred-messages-modal');
+  const msgElement = document.querySelector(`.msg-wrapper[data-msg-id="${messageId}"]`);
+  if (msgElement) {
+    msgElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    msgElement.style.animation = 'highlight-pulse 1.5s ease';
+  }
+};
+
+// Load Recent Media
+window.loadRecentMedia = function () {
+  if (!window.currentConversationId) {
+    console.log('⚠️ No conversation selected, skipping media load');
+    return;
+  }
+
+  console.log('🖼️ Loading recent media for conversation:', window.currentConversationId);
+  console.log('📊 Total messages:', messages?.length || 0);
+
+  const mediaMessages = messages.filter(m => {
+    // Check for file attachments or image URLs in content
+    const hasFile = m.fileUrl && (m.fileUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i));
+    const hasImageInContent = m.content && m.content.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)/i);
+    return hasFile || hasImageInContent;
+  });
+
+  console.log('🎨 Found media messages:', mediaMessages.length);
+
+  const mediaGrid = document.getElementById('recent-media-container');
+  if (!mediaGrid) {
+    console.log('❌ Media grid container not found');
+    return;
+  }
+
+  if (mediaMessages.length === 0) {
+    mediaGrid.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.9rem;">No media shared yet</p>';
+    return;
+  }
+
+  // Show max 6 media items
+  const displayMedia = mediaMessages.slice(0, 6);
+  const remainingCount = Math.max(0, mediaMessages.length - 6);
+
+  mediaGrid.innerHTML = displayMedia.map((msg, idx) => {
+    const mediaUrl = msg.fileUrl || '/images/avatar-placeholder.png';
+    const isLast = idx === 5 && remainingCount > 0;
+
+    return `
+      <div class="media-item" onclick="viewFullMedia('${mediaUrl}')" style="background-image: url('${mediaUrl}'); cursor: pointer; position: relative; background-size: cover; background-position: center; border-radius: 12px; height: 100px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+        ${isLast ? `<div style="position: absolute; inset:0; background: rgba(0,0,0,0.7); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 1.4rem;">+${remainingCount}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  console.log('✅ Media grid populated with', displayMedia.length, 'items');
+};
+
+// View full media
+window.viewFullMedia = function (mediaUrl) {
+  const modalHtml = `
+    <div class="modal" id="media-viewer-modal" style="display: flex;">
+      <div class="modal-content" style="max-width: 900px; background: #000;">
+        <div class="modal-header" style="background: rgba(0,0,0,0.8);">
+          <h2 style="color: white;">Media Viewer</h2>
+          <button class="modal-close" onclick="closeModal('media-viewer-modal')" style="color: white;">×</button>
+        </div>
+        <div class="modal-body" style="background: #000; display: flex; justify-content: center; align-items: center;">
+          <img src="${mediaUrl}" style="max-width: 100%; max-height: 70vh; object-fit: contain;" />
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-container').innerHTML = modalHtml;
+};
+
+// Toggle Notifications for current conversation
+window.toggleConversationNotifications = function () {
+  if (!window.currentConversationId) return;
+
+  const key = `notifications_${window.currentConversationId}`;
+  const currentState = localStorage.getItem(key) !== 'false'; // Default true
+  const newState = !currentState;
+
+  localStorage.setItem(key, String(newState));
+
+  // Update toggle UI
+  const toggle = document.querySelector('#chat-details-pane .toggle-switch-ios');
+  if (toggle) {
+    if (newState) {
+      toggle.classList.add('active');
+    } else {
+      toggle.classList.remove('active');
+    }
+  }
+
+  window.notify?.success(newState ? 'Notifications enabled' : 'Notifications disabled');
+};
+
+// Load notification state when opening chat
+window.loadNotificationState = function () {
+  if (!window.currentConversationId) return;
+
+  const key = `notifications_${window.currentConversationId}`;
+  const isEnabled = localStorage.getItem(key) !== 'false'; // Default true
+
+  const toggle = document.querySelector('#chat-details-pane .toggle-switch-ios');
+  if (toggle) {
+    if (isEnabled) {
+      toggle.classList.add('active');
+    } else {
+      toggle.classList.remove('active');
+    }
+  }
+};

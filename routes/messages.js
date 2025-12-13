@@ -72,6 +72,74 @@ router.post('/:id/star', protect, async (req, res) => {
     }
 });
 
+// @route   POST /api/messages/:id/react
+// @desc    Toggle emoji reaction on a message
+// @access  Private
+router.post('/:id/react', protect, async (req, res) => {
+    try {
+        const { emoji } = req.body;
+        const messageId = req.params.id;
+
+        if (!emoji) {
+            return res.status(400).json({ success: false, message: 'Emoji is required' });
+        }
+
+        const message = await Message.findByPk(messageId);
+        if (!message) {
+            return res.status(404).json({ success: false, message: 'Message not found' });
+        }
+
+        // Verify participation
+        const isParticipant = await ConversationParticipant.findOne({
+            where: {
+                conversationId: message.conversationId,
+                userId: req.user.id
+            }
+        });
+
+        if (!isParticipant) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        // Update reactions
+        let currentReactions = message.reactions || {};
+
+        // Ensure it's an object
+        if (typeof currentReactions === 'string') {
+            try { currentReactions = JSON.parse(currentReactions); } catch (e) { currentReactions = {}; }
+        }
+
+        if (currentReactions[req.user.id] === emoji) {
+            delete currentReactions[req.user.id];
+        } else {
+            currentReactions[req.user.id] = emoji;
+        }
+
+        message.changed('reactions', true);
+        message.reactions = currentReactions;
+        await message.save();
+
+        // Emit socket event
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`conversation_${message.conversationId}`).emit('message_reaction', {
+                messageId: message.id,
+                userId: req.user.id,
+                emoji: currentReactions[req.user.id] || null,
+                reactions: currentReactions
+            });
+        }
+
+        res.json({
+            success: true,
+            reactions: currentReactions
+        });
+    } catch (error) {
+        console.error('Reaction error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 // @route   POST /api/messages/ai/start
 // @desc    Start a new AI conversation
 // @access  Private
@@ -229,6 +297,9 @@ router.get('/conversations', protect, async (req, res) => {
             where: {
                 id: {
                     [Op.in]: conversationIds
+                },
+                type: {
+                    [Op.ne]: 'ai_chat' // Exclude AI chats from main list
                 }
             },
             include: [

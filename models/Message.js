@@ -50,10 +50,20 @@ const Message = sequelize.define('Message', {
         allowNull: true,
         field: 'read_at'
     },
+    deliveredAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        field: 'delivered_at'
+    },
     isStarred: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
         field: 'is_starred'
+    },
+    reactions: {
+        type: DataTypes.JSON, // Stores { "userId": "emoji" }
+        defaultValue: {},
+        allowNull: true // Changed to allow null to be safe, though empty obj is default
     },
     replyToId: {
         type: DataTypes.INTEGER,

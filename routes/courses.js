@@ -8,22 +8,49 @@ const { protect, authorize } = require('../middleware/auth');
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
-        let where = {};
+        console.log('📚 GET /api/courses - User:', req.user.id, 'Role:', req.user.role);
+
+        let coursesQuery = {};
 
         // Filter based on role
         if (req.user.role === 'professor') {
-            where.professorId = req.user.id;
-        } else if (req.user.role === 'student') {
-            where.isActive = true;
-        }
-
-        const courses = await Course.findAll({
-            where,
-            include: [
+            console.log('  → Professor query: filtering by professorId');
+            coursesQuery.where = { professorId: req.user.id };
+            coursesQuery.include = [
                 { association: 'professor', attributes: ['id', 'name', 'email'] },
                 { association: 'students', attributes: ['id', 'name', 'email'] }
-            ]
-        });
+            ];
+        } else if (req.user.role === 'student') {
+            console.log('  → Student query: filtering by enrollments for student', req.user.id);
+            // For students: only return courses they're enrolled in (approved status)
+            coursesQuery.include = [
+                {
+                    association: 'professor',
+                    attributes: ['id', 'name', 'email']
+                },
+                {
+                    association: 'students',
+                    attributes: ['id', 'name', 'email'],
+                    through: {
+                        where: {
+                            studentId: req.user.id,
+                            status: 'approved'
+                        }
+                    },
+                    required: true // INNER JOIN - only courses with this student enrolled
+                }
+            ];
+        } else {
+            console.log('  → Admin query: returning all courses');
+            // Admin: return all courses
+            coursesQuery.include = [
+                { association: 'professor', attributes: ['id', 'name', 'email'] },
+                { association: 'students', attributes: ['id', 'name', 'email'] }
+            ];
+        }
+
+        const courses = await Course.findAll(coursesQuery);
+        console.log('  ✅ Found', courses.length, 'courses');
 
         res.json({
             success: true,
@@ -31,7 +58,8 @@ router.get('/', protect, async (req, res) => {
             courses
         });
     } catch (error) {
-        console.error('Get courses error:', error);
+        console.error('  ❌ Get courses error:', error);
+        console.error('  Stack:', error.stack);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });

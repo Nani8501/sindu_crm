@@ -217,6 +217,95 @@
 
 
 
+/* === TYPING INDICATOR & READ RECEIPTS === */
+
+.typing-indicator {
+    padding: 10px 16px;
+    background: #f1f5f9;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 12px;
+    margin-left: 12px;
+    animation: fadeIn 0.3s;
+    width: fit-content;
+}
+
+.typing-dot {
+    width: 6px;
+    height: 6px;
+    background: #94a3b8;
+    border-radius: 50%;
+    animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typingBounce {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Read Receipt Eye Icon */
+.read-receipt {
+    font-size: 14px;
+    margin-left: 4px;
+    vertical-align: middle;
+    color: rgba(255, 255, 255, 0.7);
+    display: inline-flex;
+    align-items: center;
+}
+
+.read-receipt.seen {
+    color: #4ade80;
+    /* Green eye for seen */
+    animation: eyePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes eyePop {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scale(1.2);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+
 /* === MAIN CHAT AREA === */
 .chat-main {
     flex: 1;
@@ -1284,7 +1373,18 @@
     border-radius: 20px;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
     border: 1px solid rgba(0, 0, 0, 0.08);
-    z-index: 10;
+    z-index: 100 !important;
+    /* Ensure it stays on top */
+}
+
+/* Invisible bridge to keep hover active */
+.msg-actions::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 0;
+    right: 0;
+    height: 10px;
 }
 
 .msg-wrapper.sent .msg-bubble .msg-actions {
@@ -1297,7 +1397,8 @@
     /* Ensure actions are on top of next message */
 }
 
-.msg-wrapper:hover .msg-actions {
+.msg-wrapper:hover .msg-actions,
+.msg-actions:hover {
     display: flex;
 }
 
@@ -1734,4 +1835,174 @@
 
 [data-theme="dark"] .reaction-count {
     color: #06b6d4;
+}
+
+/* ========================================= */
+/* === NEW: Status Ticks & Reactions UI === */
+/* ========================================= */
+
+.msg-status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 1.1em;
+    /* Relative to parent */
+    margin-left: 4px;
+    height: auto;
+    vertical-align: middle;
+}
+
+.msg-status i {
+    margin-left: -2px;
+    /* Slight overlap */
+    font-weight: bold;
+}
+
+/* 1 Tick: Sent */
+.msg-status.sent {
+    color: #9ca3af;
+}
+
+/* Sent message tick color (Light/White) */
+.msg-wrapper.sent .msg-status.sent,
+.msg-wrapper.sent .msg-status.delivered {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* 2 Ticks: Delivered */
+.msg-status.delivered {
+    color: #9ca3af;
+}
+
+/* 3 Ticks: Read (Blue/Bright) */
+.msg-status.read {
+    color: #00bcd4;
+    /* Bright Cyan/Blue */
+}
+
+/* Sent message read tick (Bright Cyan/White) */
+.msg-wrapper.sent .msg-status.read {
+    color: #00bcd4;
+    background: white;
+    /* Optional: contrast boost */
+    border-radius: 50%;
+    padding: 0 1px;
+}
+
+/* Visual star on bubble */
+.msg-star-icon {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #fbbf24;
+    color: #fff;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    z-index: 5;
+}
+
+/* Reaction Badge hanging off bubble */
+.msg-reaction-badge {
+    position: absolute;
+    bottom: -14px;
+    right: 10px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 2px 6px;
+    font-size: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    z-index: 5;
+    transition: transform 0.1s;
+}
+
+.msg-reaction-badge:hover {
+    transform: scale(1.1);
+}
+
+.msg-wrapper.received .msg-reaction-badge {
+    left: 10px;
+    right: auto;
+}
+
+[data-theme="dark"] .msg-reaction-badge {
+    background: #334155;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+}
+/* ==================== CHAT DETAILS ANIMATIONS ==================== */
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    background-color: var(--bg-primary);
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+  }
+}
+
+/* Starred Messages Modal Styling */
+.starred-msg-item:hover {
+  background: var(--bg-tertiary) !important;
+  transform: translateX(-2px);
+  transition: all 0.2s ease;
+}
+
+/* Media Thumb Hover */
+.media-thumb:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* iOS-style Toggle Switch Improvements */
+.toggle-switch-ios {
+  width: 50px;
+  height: 28px;
+  background-color: #ccc;
+  border-radius: 20px;
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.toggle-switch-ios::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: white;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch-ios.active {
+  background-color: #10b981;
+}
+
+.toggle-switch-ios.active::after {
+  transform: translateX(22px);
+}
+
+/* Setting Row Hover */
+.setting-row {
+  transition: background-color 0.2s ease;
+}
+
+.setting-row:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }

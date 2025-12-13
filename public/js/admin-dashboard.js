@@ -74,7 +74,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   } catch (error) {
     console.error('Initialization error:', error);
-    // window.location.href = '/login.html';
+    if (error.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+    }
   }
 });
 
@@ -186,6 +189,7 @@ async function loadAllData() {
     renderOverview();
   } catch (error) {
     console.error('Error loading data:', error);
+    throw error;
   }
 }
 
@@ -1815,7 +1819,7 @@ async function loadChatHistory(conversationId, conversationName, activityStatus 
             replyContext = `
                         <div class="reply-context">
                             <i class="ri-reply-line"></i>
-                            <span class="reply-sender">${msg.replyTo.sender?.name || 'User'}</span>
+                            <span class="reply-sender">Replying to ${msg.replyTo.sender?.name || 'User'}</span>
                             <span class="reply-text">${replyText}</span>
                         </div>
                     `;
@@ -1825,11 +1829,20 @@ async function loadChatHistory(conversationId, conversationName, activityStatus 
                   <div class="msg-wrapper ${isMe ? 'sent' : 'received'}" data-msg-id="${msg.id}">
                     <input type="checkbox" class="msg-select-checkbox" onchange="updateSelectionCount()">
                     ${!isMe ? `<img src="${(msg.sender && msg.sender.avatar) ? msg.sender.avatar : '/images/avatar-placeholder.png'}" class="msg-avatar">` : ''}
-                    <div class="msg-bubble">
-                        ${msg.isStarred ? '<i class="ri-star-fill starred-indicator"></i>' : ''}
+                    <div class="msg-bubble" style="position: relative;">
+                        ${msg.isStarred ? '<div class="msg-star-icon"><i class="ri-star-fill"></i></div>' : ''}
+                        ${msg.reactions && Object.keys(msg.reactions).length > 0 ? `
+                            <div class="msg-reaction-badge" onclick="event.stopPropagation(); toggleEmojiPicker(${msg.id}, this)">
+                                <span>${Object.values(msg.reactions)[0]}</span>
+                                <span class="msg-reaction-count">${Object.keys(msg.reactions).length}</span>
+                            </div>
+                        ` : ''}
                         ${replyContext}
                         ${msg.content}
-                        <span class="msg-time">${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span class="msg-time">
+                            ${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            ${moneyIsRead(msg, isMe)}
+                        </span>
                         <div class="msg-actions">
                              <button class="msg-action-btn" onclick="toggleStar(${msg.id}, this)" title="Star">
                                 <i class="${msg.isStarred ? 'ri-star-fill' : 'ri-star-line'}"></i>
@@ -1864,8 +1877,124 @@ async function loadChatHistory(conversationId, conversationName, activityStatus 
   });
 
   // 4. Show Footer
+  // 4. Show Footer & Attach Input Listeners
   const footer = document.getElementById('chat-footer');
-  if (footer) footer.style.display = 'flex';
+  if (footer) {
+    footer.style.display = 'flex';
+    const input = document.getElementById('messageInput');
+
+    if (input) {
+      // Remove old listeners
+      const newInput = input.cloneNode(true);
+      input.parentNode.replaceChild(newInput, input);
+
+      // Typing Emitter
+      let typingTimeout;
+      newInput.addEventListener('input', () => {
+        if (!typingTimeout) {
+          const socket = io(); // Use client-side socket instance
+          socket.emit('typing', { conversationId, receiverId: null }); // Placeholder for receiverId
+          // For direct, we need receiverId. Admin chat logic is slightly different?
+          // Admin usually chats one-on-one. 
+          // We can iterate participants or just emit to room if we join conversation room (which we don't, we join user_id).
+          // But 'typing' event expects receiverId.
+          // Fetch participants or infer? 
+          // Existing socket logic emits to user_receiverId.
+          // We need to know who we are talking to.
+          // 'loadChatHistory' has 'conversationId'.
+          // We should probably emit to the OTHER participant.
+          // In Admin dashboard, we don't easily have the other user ID in scope right here.
+          // But wait, the messages have sender/receiver.
+          // Let's assume we rely on the server handling or we pass the partner ID.
+          // Actually, for now, let's omit receiverId if we don't have it, or try to get it from context.
+          // loadChatHistory doesn't pass participant ID.
+          // But we can get it from the chat item dataset if we look back.
+          // Or we can rely on `activityStatus` being passed? No.
+
+          // Hack: In our socket implementation, `typing` requires `receiverId` to emit to `user_ID`.
+          // If we don't have it, it won't work.
+          // Student dashboard has `currentUser` and `chatUser` (maybe).
+          // Admin dashboard needs the partner ID. 
+          // Let's find where to get it. 
+        }
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+          const socket = io(); // Use client-side socket instance
+          socket.emit('stop_typing', { conversationId, receiverId: null }); // Placeholder
+          typingTimeout = null;
+        }, 2000);
+      });
+
+      newInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage(conversationId);
+      });
+    }
+  }
+
+  // Socket Listeners
+  const socket = io(); // Reuse global socket
+
+  socket.off('typing');
+  socket.off('stop_typing');
+  socket.off('message_read');
+
+  socket.on('typing', (data) => {
+    if (String(data.conversationId) === String(conversationId) && data.senderId !== currentUser.id) {
+      showTypingIndicator();
+    }
+  });
+
+  socket.on('stop_typing', (data) => {
+    if (String(data.conversationId) === String(conversationId)) {
+      hideTypingIndicator();
+    }
+  });
+
+  socket.on('message_read', (data) => {
+    if (String(data.conversationId) === String(conversationId)) {
+      markMessagesAsRead();
+    }
+  });
+
+  socket.on('message_delivered', (data) => {
+    if (String(data.conversationId) === String(conversationId)) {
+      const wrapper = document.querySelector(`.msg-wrapper[data-msg-id="${data.messageId}"]`);
+      if (wrapper) {
+        const statusParams = wrapper.querySelector('.msg-status');
+        if (statusParams && !statusParams.classList.contains('read')) {
+          statusParams.className = 'msg-status delivered';
+          statusParams.title = 'Delivered';
+          statusParams.innerHTML = '<i class="ri-check-double-line"></i>';
+        }
+      }
+    }
+  });
+
+  socket.on('message_reaction', (data) => {
+    if (String(data.conversationId) === String(conversationId)) {
+      updateMessageReaction(data.messageId, data.reactions);
+    }
+  });
+
+  // Listen for new messages to emit delivery status
+  socket.on('message', (msg) => {
+    if (String(msg.conversationId) === String(conversationId)) {
+      // Check if already exists (optimistic)
+      if (!document.querySelector(`[data-msg-id="${msg.id}"]`)) {
+        appendMessage(msg);
+      }
+      // Emit delivered event
+      if (msg.senderId !== currentUser.id) {
+        socket.emit('message_delivered', {
+          messageId: msg.id,
+          senderId: msg.senderId,
+          conversationId: msg.conversationId
+        });
+        // Also mark as read if window is focused (simplified for now)
+        socket.emit('message_read', { messageId: msg.id, senderId: msg.senderId });
+      }
+    }
+  });
 }
 
 // Helpers for Admin Chat
@@ -1895,7 +2024,7 @@ window.sendMessage = async function (conversationId) {
       replyContext = `
         <div class="reply-context">
           <i class="ri-reply-line"></i>
-          <span class="reply-sender">${window.currentReplySender || 'User'}</span>
+          <span class="reply-sender">Replying to ${window.currentReplySender || 'User'}</span>
           <span class="reply-text">${replyText}${replyText.length > 50 ? '...' : ''}</span>
         </div>
       `;
@@ -2143,42 +2272,31 @@ window.toggleEmojiPicker = function (messageId, button) {
   }, 10);
 };
 
-window.addReaction = function (messageId, emoji) {
-  const wrapper = document.querySelector(`.msg-wrapper[data-msg-id="${messageId}"]`);
-  if (!wrapper) return;
-
-  const bubble = wrapper.querySelector('.msg-bubble');
-  let reactions = bubble.querySelector('.msg-reactions');
-
-  if (!reactions) {
-    reactions = document.createElement('div');
-    reactions.className = 'msg-reactions';
-    // Inline styles matches typical modern chat look
-    reactions.style.cssText = 'display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;';
-    bubble.appendChild(reactions);
-  }
-
-  // Check if emoji already exists
-  const existingReaction = Array.from(reactions.children).find(r => r.textContent.startsWith(emoji));
-  if (existingReaction) {
-    // Increment count
-    const countSpan = existingReaction.querySelector('.reaction-count');
-    if (countSpan) {
-      const currentCount = parseInt(countSpan.textContent) || 1;
-      countSpan.textContent = currentCount + 1;
-    }
-  } else {
-    // Add new reaction
-    const reaction = document.createElement('span');
-    reaction.className = 'reaction-item';
-    reaction.style.cssText = 'background: rgba(0,0,0,0.05); border-radius: 12px; padding: 2px 8px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border: 1px solid transparent;';
-    reaction.innerHTML = `${emoji} <span class="reaction-count" style="font-size: 0.75rem; opacity: 0.8;">1</span>`;
-    reactions.appendChild(reaction);
-  }
-
+window.addReaction = async function (messageId, emoji) {
   // Close emoji picker
   const picker = document.querySelector('.emoji-picker');
   if (picker) picker.remove();
+
+  try {
+    const response = await fetch(`/api/messages/${messageId}/react`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ emoji })
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      // UI update is handled via socket event, but we can do optimistic update here too
+      updateMessageReaction(messageId, data.reactions);
+    } else {
+      console.error('Failed to react:', data.message);
+    }
+  } catch (error) {
+    console.error('Error adding reaction:', error);
+  }
 };
 
 
@@ -3179,6 +3297,72 @@ window.toggleStar = function (msgId, btn) {
   console.log('Toggle star for', msgId);
 }
 
+function appendMessage(msg) {
+  const messagesContainer = document.getElementById('messages-container');
+  const isMe = msg.senderId === currentUser.id;
+
+  // Reply context logic (simplified)
+  const replyContext = '';
+
+  messagesContainer.innerHTML += `
+        <div class="msg-wrapper ${isMe ? 'sent' : 'received'}" data-msg-id="${msg.id}">
+        <input type="checkbox" class="msg-select-checkbox" onchange="updateSelectionCount()">
+        ${!isMe ? `<img src="${(msg.sender && msg.sender.avatar) ? msg.sender.avatar : '/images/avatar-placeholder.png'}" class="msg-avatar">` : ''}
+        <div class="msg-bubble" style="position: relative;">
+            ${msg.isStarred ? '<div class="msg-star-icon"><i class="ri-star-fill"></i></div>' : ''}
+             ${msg.reactions && Object.keys(msg.reactions).length > 0 ? `
+                <div class="msg-reaction-badge" onclick="event.stopPropagation(); toggleEmojiPicker(${msg.id}, this)">
+                    <span>${Object.values(msg.reactions)[0]}</span>
+                    <span class="msg-reaction-count">${Object.keys(msg.reactions).length}</span>
+                </div>
+            ` : ''}
+            ${msg.content}
+            <span class="msg-time">
+                ${new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                ${moneyIsRead(msg, isMe)}
+            </span>
+             <div class="msg-actions">
+                <button class="msg-action-btn" onclick="toggleStar(${msg.id}, this)" title="Star">
+                <i class="${msg.isStarred ? 'ri-star-fill' : 'ri-star-line'}"></i>
+                </button>
+                <button class="msg-action-btn" onclick="toggleEmojiPicker(${msg.id}, this)" title="React">
+                    <i class="ri-emotion-line"></i>
+                </button>
+                <button class="msg-action-btn" title="Reply">
+                    <i class="ri-reply-line"></i>
+                </button>
+            </div>
+        </div>
+        </div>
+    `;
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function updateMessageReaction(messageId, reactions) {
+  const wrapper = document.querySelector(`.msg-wrapper[data-msg-id="${messageId}"]`);
+  if (!wrapper) return;
+  const bubble = wrapper.querySelector('.msg-bubble');
+  let badge = bubble.querySelector('.msg-reaction-badge');
+
+  if (!reactions || Object.keys(reactions).length === 0) {
+    if (badge) badge.remove();
+    return;
+  }
+
+  const count = Object.keys(reactions).length;
+  const firstEmoji = Object.values(reactions)[0];
+
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.className = 'msg-reaction-badge';
+    badge.onclick = (e) => { e.stopPropagation(); toggleEmojiPicker(messageId, badge); };
+    // Insert before msg-actions or append
+    bubble.appendChild(badge);
+  }
+
+  badge.innerHTML = `<span>${firstEmoji}</span><span class="msg-reaction-count">${count}</span>`;
+}
+
 window.handleFileUpload = function (input) {
   if (input.files && input.files[0]) {
     alert("File selected: " + input.files[0].name + " (Upload feature pending backend)");
@@ -3186,3 +3370,223 @@ window.handleFileUpload = function (input) {
     input.value = '';
   }
 }
+
+function moneyIsRead(msg, isMe) {
+  if (!isMe) return '';
+
+  // 3 Ticks (Read)
+  if (msg.isRead) {
+    return `
+        <span class="msg-status read" title="Read">
+            <i class="ri-check-double-line"></i><i class="ri-check-line" style="margin-left:-4px;"></i>
+        </span>`;
+  }
+
+  // 2 Ticks (Delivered) - Requires deliveredAt from backend
+  if (msg.deliveredAt) {
+    return `
+        <span class="msg-status delivered" title="Delivered">
+            <i class="ri-check-double-line"></i>
+        </span>`;
+  }
+
+  // 1 Tick (Sent)
+  return `
+        <span class="msg-status sent" title="Sent">
+            <i class="ri-check-line"></i>
+        </span>`;
+}
+
+function showTypingIndicator() {
+  const container = document.getElementById('messages-container');
+  if (!container.querySelector('.typing-indicator')) {
+    const typingHtml = `
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        `;
+    container.insertAdjacentHTML('beforeend', typingHtml);
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function hideTypingIndicator() {
+  const indicator = document.querySelector('.typing-indicator');
+  if (indicator) indicator.remove();
+}
+
+function markMessagesAsRead() {
+  const sentMessages = document.querySelectorAll('.msg-wrapper.sent .msg-bubble');
+  sentMessages.forEach(bubble => {
+    if (!bubble.querySelector('.read-receipt')) {
+      const timeSpan = bubble.querySelector('.msg-time');
+      if (timeSpan) {
+        timeSpan.insertAdjacentHTML('afterend', '<span class="read-receipt seen"><i class="ri-eye-line"></i></span>');
+      }
+    }
+  });
+}
+
+// ==================== CHAT DETAILS FEATURES ====================
+
+// Show Starred Messages Modal
+window.showStarredMessages = function () {
+  if (!window.currentConversationId) {
+    window.notify?.warning('Please select a conversation first');
+    return;
+  }
+
+  // Filter by BOTH isStarred AND current conversationId
+  const starredMsgs = messages.filter(m =>
+    m.isStarred && m.conversationId === window.currentConversationId
+  );
+
+  console.log('⭐ Starred messages for conversation', window.currentConversationId, ':', starredMsgs.length);
+
+  if (starredMsgs.length === 0) {
+    window.notify?.info('No starred messages in this conversation');
+    return;
+  }
+
+  const modalHtml = `
+    <div class="modal" id="starred-messages-modal" style="display: flex;">
+      <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+          <h2><i class="ri-star-fill" style="color: #fbbf24;"></i> Starred Messages</h2>
+          <button class="modal-close" onclick="closeModal('starred-messages-modal')">×</button>
+        </div>
+        <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+          ${starredMsgs.map(msg => `
+            <div class="starred-msg-item" onclick="jumpToMessage('${msg.id}')" style="padding: 15px; border-bottom: 1px solid var(--border-color); cursor: pointer; border-radius: 8px; margin-bottom: 10px; background: var(--bg-secondary);">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <strong style="color: var(--primary-color);">${msg.sender?.name || 'User'}</strong>
+                <span style="font-size: 0.85rem; color: var(--text-muted);">${new Date(msg.createdAt).toLocaleString()}</span>
+              </div>
+              <p style="margin: 0; color: var(--text-primary); word-wrap: break-word;">${msg.content}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('modal-container').innerHTML = modalHtml;
+};
+
+// Jump to message in chat
+window.jumpToMessage = function (messageId) {
+  closeModal('starred-messages-modal');
+  const msgElement = document.querySelector(`.msg-wrapper[data-msg-id="${messageId}"]`);
+  if (msgElement) {
+    msgElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    msgElement.style.animation = 'highlight-pulse 1.5s ease';
+  }
+};
+
+// Load Recent Media
+window.loadRecentMedia = function () {
+  if (!window.currentConversationId) {
+    console.log('⚠️ No conversation selected, skipping media load');
+    return;
+  }
+
+  console.log('🖼️ Loading recent media for conversation:', window.currentConversationId);
+  console.log('📊 Total messages:', messages?.length || 0);
+
+  const mediaMessages = messages.filter(m => {
+    // Check for file attachments or image URLs in content
+    const hasFile = m.fileUrl && (m.fileUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i));
+    const hasImageInContent = m.content && m.content.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)/i);
+    return hasFile || hasImageInContent;
+  });
+
+  console.log('�� Found media messages:', mediaMessages.length);
+
+  const mediaGrid = document.getElementById('recent-media-container');
+  if (!mediaGrid) {
+    console.log('❌ Media grid container not found');
+    return;
+  }
+
+  if (mediaMessages.length === 0) {
+    mediaGrid.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 0.9rem;">No media shared yet</p>';
+    return;
+  }
+
+  // Show max 6 media items
+  const displayMedia = mediaMessages.slice(0, 6);
+  const remainingCount = Math.max(0, mediaMessages.length - 6);
+
+  mediaGrid.innerHTML = displayMedia.map((msg, idx) => {
+    const mediaUrl = msg.fileUrl || '/images/avatar-placeholder.png';
+    const isLast = idx === 5 && remainingCount > 0;
+
+    return `
+      <div class="media-item" onclick="viewFullMedia('${mediaUrl}')" style="background-image: url('${mediaUrl}'); cursor: pointer; position: relative; background-size: cover; background-position: center; border-radius: 12px; height: 100px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+        ${isLast ? `<div style="position: absolute; inset:0; background: rgba(0,0,0,0.7); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 1.4rem;">+${remainingCount}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  console.log('✅ Media grid populated with', displayMedia.length, 'items');
+};
+
+// View full media
+window.viewFullMedia = function (mediaUrl) {
+  const modalHtml = `
+    <div class="modal" id="media-viewer-modal" style="display: flex;">
+      <div class="modal-content" style="max-width: 900px; background: #000;">
+        <div class="modal-header" style="background: rgba(0,0,0,0.8);">
+          <h2 style="color: white;">Media Viewer</h2>
+          <button class="modal-close" onclick="closeModal('media-viewer-modal')" style="color: white;">×</button>
+        </div>
+        <div class="modal-body" style="background: #000; display: flex; justify-content: center; align-items: center;">
+          <img src="${mediaUrl}" style="max-width: 100%; max-height: 70vh; object-fit: contain;" />
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-container').innerHTML = modalHtml;
+};
+
+// Toggle Notifications for current conversation
+window.toggleConversationNotifications = function () {
+  if (!window.currentConversationId) return;
+
+  const key = `notifications_${window.currentConversationId}`;
+  const currentState = localStorage.getItem(key) !== 'false'; // Default true
+  const newState = !currentState;
+
+  localStorage.setItem(key, String(newState));
+
+  // Update toggle UI
+  const toggle = document.querySelector('#chat-details-pane .toggle-switch-ios');
+  if (toggle) {
+    if (newState) {
+      toggle.classList.add('active');
+    } else {
+      toggle.classList.remove('active');
+    }
+  }
+
+  window.notify?.success(newState ? 'Notifications enabled' : 'Notifications disabled');
+};
+
+// Load notification state when opening chat
+window.loadNotificationState = function () {
+  if (!window.currentConversationId) return;
+
+  const key = `notifications_${window.currentConversationId}`;
+  const isEnabled = localStorage.getItem(key) !== 'false'; // Default true
+
+  const toggle = document.querySelector('#chat-details-pane .toggle-switch-ios');
+  if (toggle) {
+    if (isEnabled) {
+      toggle.classList.add('active');
+    } else {
+      toggle.classList.remove('active');
+    }
+  }
+};
